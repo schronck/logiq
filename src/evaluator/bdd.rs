@@ -45,7 +45,7 @@ pub fn build_bdd(
     parsed_tokens: &ParsedTokens,
 ) -> Result<BDDFunc, String> {
     build_bdd_from_iter(bdd, &mut parsed_tokens.tokens().iter())
-        .ok_or("invalid logic: BDDFunc cannot be None".to_owned())
+        .ok_or_else(|| "invalid logic: BDDFunc cannot be None".to_owned())
 }
 
 fn build_bdd_from_iter<'a, I>(bdd: &mut BDD<TerminalId>, tokens: &mut I) -> Option<BDDFunc>

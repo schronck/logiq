@@ -4,19 +4,24 @@ pub use bdd::build_bdd;
 use crate::requirement::Requirement;
 use crate::token::ParsedTokens;
 use boolean_expression::{BDDFunc, BDD};
+use futures::future::try_join_all;
 
 use std::collections::HashMap;
 
 type TerminalId = char;
 
-struct Evaluator<R> {
+pub struct Evaluator<R> {
     bdd: BDD<TerminalId>,
     bdd_func: BDDFunc,
-    terminal_evals: HashMap<TerminalId, R>,
+    requirements: HashMap<TerminalId, R>,
+    evals: HashMap<TerminalId, bool>,
 }
 
 impl<R: Requirement> Evaluator<R> {
-    pub fn new(tokens: &ParsedTokens, requirements: Vec<R>) -> Result<Self, String> {
+    pub fn new(
+        tokens: &ParsedTokens,
+        requirements: HashMap<TerminalId, R>,
+    ) -> Result<Self, String> {
         let mut bdd = BDD::<char>::new();
         let bdd_func = build_bdd(&mut bdd, tokens)?;
         let bdd_terminal_ids = bdd.labels();
@@ -29,19 +34,29 @@ impl<R: Requirement> Evaluator<R> {
             ));
         }
 
-        let terminal_evals = bdd_terminal_ids
-            .into_iter()
-            .zip(requirements.into_iter())
-            .collect();
-
         Ok(Self {
             bdd,
             bdd_func,
-            terminal_evals,
+            requirements,
+            evals: HashMap::new(),
         })
     }
 
-    pub async fn evaluate(&self) -> bool {
-        todo!()
+    pub async fn evaluate<Q>(&mut self, querier: &Q) -> Result<bool, String> {
+        let future_evals = self
+            .requirements
+            .values()
+            .map(|req| req.check(querier))
+            .collect::<Vec<_>>();
+        let evals = try_join_all(future_evals)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.evals = self
+            .requirements
+            .keys()
+            .copied()
+            .zip(evals.into_iter())
+            .collect();
+        Ok(self.bdd.evaluate(self.bdd_func, &self.evals))
     }
 }
