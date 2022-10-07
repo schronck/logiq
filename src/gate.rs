@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-// NOTE string representations has to be the same length
 pub const AND: &str = "AND";
 pub const OR: &str = "OR";
 pub const NAND: &str = "NAND";

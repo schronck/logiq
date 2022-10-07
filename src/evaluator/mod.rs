@@ -42,7 +42,7 @@ impl<R: Requirement> Evaluator<R> {
         })
     }
 
-    pub async fn evaluate<Q: Sync>(&mut self, querier: &Q) -> Result<bool, String> {
+    pub async fn evaluate(&mut self, querier: &R::Querier) -> Result<bool, String> {
         let future_evals = self
             .requirements
             .values()
@@ -66,7 +66,8 @@ mod test {
     use super::*;
     use crate::requirement::RequirementResult;
     use async_trait::async_trait;
-    use reqwest::Client;
+    use ethers::prelude::{Address, LocalWallet, Signature};
+    use ethers::signers::Signer;
 
     use std::str::FromStr;
 
@@ -74,8 +75,27 @@ mod test {
 
     #[async_trait]
     impl Requirement for Free {
-        async fn check<Q: Sync>(&self, _querier: &Q) -> RequirementResult {
+        type Querier = u8;
+        async fn check(&self, _querier: &Self::Querier) -> RequirementResult {
             Ok(true)
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct ControlsAddress {
+        address: Address,
+        signature: Signature,
+        msg: String,
+    }
+
+    #[async_trait]
+    impl Requirement for ControlsAddress {
+        type Querier = u8;
+        async fn check(&self, _querier: &Self::Querier) -> RequirementResult {
+            Ok(self
+                .signature
+                .verify(self.msg.as_str(), self.address)
+                .is_ok())
         }
     }
 
@@ -84,8 +104,43 @@ mod test {
         let tokens = ParsedTokens::from_str("a").unwrap();
         let mut requirements = HashMap::new();
         requirements.insert('a', Free);
+        let client = 0u8; // querier can be any type
+
         let mut evaluator = Evaluator::new(&tokens, requirements).unwrap();
-        let client = Client::new();
         assert!(evaluator.evaluate(&client).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_signatures() {
+        let wallet_a = LocalWallet::new(&mut rand_core::OsRng);
+        let wallet_b = LocalWallet::new(&mut rand_core::OsRng);
+        let msg = "requiem aeternam dona eis";
+        let signature_a = wallet_a.sign_message(msg).await.unwrap();
+        let signature_b = wallet_b.sign_message(msg).await.unwrap();
+        let client = 0u8; // querier can be any type
+
+        let controls_address_a = ControlsAddress {
+            address: wallet_a.address(),
+            signature: signature_a,
+            msg: msg.to_string(),
+        };
+
+        let controls_address_b = ControlsAddress {
+            address: wallet_b.address(),
+            signature: signature_b,
+            msg: msg.to_string(),
+        };
+
+        let mut requirements = HashMap::new();
+        requirements.insert('a', controls_address_a);
+        requirements.insert('b', controls_address_b);
+
+        let tokens = ParsedTokens::from_str("a AND b").unwrap();
+        let mut evaluator = Evaluator::new(&tokens, requirements.clone()).unwrap();
+        assert!(evaluator.evaluate(&client).await.unwrap());
+
+        let tokens = ParsedTokens::from_str("a NAND b").unwrap();
+        let mut evaluator = Evaluator::new(&tokens, requirements).unwrap();
+        assert!(!evaluator.evaluate(&client).await.unwrap());
     }
 }
