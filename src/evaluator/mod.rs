@@ -42,7 +42,7 @@ impl<R: Requirement> Evaluator<R> {
         })
     }
 
-    pub async fn evaluate<Q>(&mut self, querier: &Q) -> Result<bool, String> {
+    pub async fn evaluate<Q: Sync>(&mut self, querier: &Q) -> Result<bool, String> {
         let future_evals = self
             .requirements
             .values()
@@ -58,5 +58,34 @@ impl<R: Requirement> Evaluator<R> {
             .zip(evals.into_iter())
             .collect();
         Ok(self.bdd.evaluate(self.bdd_func, &self.evals))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::requirement::RequirementResult;
+    use async_trait::async_trait;
+    use reqwest::Client;
+
+    use std::str::FromStr;
+
+    struct Free;
+
+    #[async_trait]
+    impl Requirement for Free {
+        async fn check<Q: Sync>(&self, _querier: &Q) -> RequirementResult {
+            Ok(true)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_free() {
+        let tokens = ParsedTokens::from_str("a").unwrap();
+        let mut requirements = HashMap::new();
+        requirements.insert('a', Free);
+        let mut evaluator = Evaluator::new(&tokens, requirements).unwrap();
+        let client = Client::new();
+        assert!(evaluator.evaluate(&client).await.unwrap());
     }
 }
