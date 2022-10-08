@@ -1,4 +1,4 @@
-use super::{ScannedTokens, Token};
+use super::Token;
 use crate::gate::Gate;
 use thiserror::Error;
 
@@ -28,7 +28,7 @@ impl<'a, 'b> Scanner<'a>
 where
     'b: 'a,
 {
-    pub fn scan(source: &'b str) -> Result<ScannedTokens, ScannerError> {
+    pub fn scan(source: &'b str) -> Result<Vec<Token>, ScannerError> {
         let mut scanner = Self {
             source: source.chars().peekable(),
             lexeme: String::new(),
@@ -58,7 +58,7 @@ where
         } else if parentheses != 0 {
             Err(ScannerError::InvalidParentheses)
         } else {
-            Ok(ScannedTokens(tokens))
+            Ok(tokens)
         }
     }
 
