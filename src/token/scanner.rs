@@ -7,8 +7,12 @@ use std::str::{Chars, FromStr};
 
 #[derive(Error, Debug)]
 pub enum ScannerError {
+    #[error("parsed an empty expression")]
+    EmptyExpression,
     #[error("input fully scanned")]
     EofReached,
+    #[error("missing on mangled parentheses in expression")]
+    InvalidParentheses,
     #[error("invalid token: {0}")]
     InvalidToken(char),
     #[error(transparent)]
@@ -18,7 +22,6 @@ pub enum ScannerError {
 pub struct Scanner<'a> {
     source: Peekable<Chars<'a>>,
     lexeme: String,
-    tokens: Vec<Token>,
 }
 
 impl<'a, 'b> Scanner<'a>
@@ -29,18 +32,34 @@ where
         let mut scanner = Self {
             source: source.chars().peekable(),
             lexeme: String::new(),
-            tokens: Vec::new(),
         };
+
+        let mut tokens = Vec::new();
+        let mut parentheses = 0_u32; // for detecting invalid parentheses early
 
         loop {
             match scanner.scan_next() {
-                Ok(token) => scanner.tokens.push(token),
+                Ok(token) => {
+                    match token {
+                        Token::Whitespace => continue,
+                        Token::OpeningParenthesis => parentheses = parentheses.saturating_add(1),
+                        Token::ClosingParenthesis => parentheses = parentheses.wrapping_sub(1),
+                        _ => {}
+                    }
+                    tokens.push(token);
+                }
                 Err(ScannerError::EofReached) => break,
                 Err(e) => return Err(e),
             }
         }
 
-        Ok(ScannedTokens(scanner.tokens))
+        if tokens.is_empty() {
+            Err(ScannerError::EmptyExpression)
+        } else if parentheses != 0 {
+            Err(ScannerError::InvalidParentheses)
+        } else {
+            Ok(ScannedTokens(tokens))
+        }
     }
 
     fn scan_next(&mut self) -> Result<Token, ScannerError> {
@@ -93,16 +112,24 @@ where
 mod test {
     use super::*;
 
+    fn is_equal_discriminant(this: &ScannerError, that: &ScannerError) -> bool {
+        std::mem::discriminant(this) == std::mem::discriminant(that)
+    }
+
     #[test]
     fn scan_empty() {
-        let tokens = Scanner::scan("").unwrap();
-        assert!(tokens.tokens().is_empty());
+        assert!(is_equal_discriminant(
+            &Scanner::scan("").err().unwrap(),
+            &ScannerError::EmptyExpression
+        ));
     }
 
     #[test]
     fn scan_whitespace() {
-        let tokens = Scanner::scan(" ").unwrap();
-        assert_eq!(tokens.tokens(), &[Token::Whitespace]);
+        assert!(is_equal_discriminant(
+            &Scanner::scan(" ").err().unwrap(),
+            &ScannerError::EmptyExpression
+        ));
     }
 
     #[test]
@@ -110,12 +137,32 @@ mod test {
         let tokens = Scanner::scan("( )").unwrap();
         assert_eq!(
             tokens.tokens(),
-            &[
-                Token::OpeningParenthesis,
-                Token::Whitespace,
-                Token::ClosingParenthesis,
-            ]
+            &[Token::OpeningParenthesis, Token::ClosingParenthesis]
         );
+
+        let error = Scanner::scan("(()").err().unwrap();
+        assert!(is_equal_discriminant(
+            &error,
+            &ScannerError::InvalidParentheses,
+        ));
+
+        let error = Scanner::scan("    )").err().unwrap();
+        assert!(is_equal_discriminant(
+            &error,
+            &ScannerError::InvalidParentheses,
+        ));
+
+        let error = Scanner::scan("(())(").err().unwrap();
+        assert!(is_equal_discriminant(
+            &error,
+            &ScannerError::InvalidParentheses,
+        ));
+
+        let error = Scanner::scan("())))))))))))))").err().unwrap();
+        assert!(is_equal_discriminant(
+            &error,
+            &ScannerError::InvalidParentheses,
+        ));
     }
 
     #[test]
@@ -125,11 +172,7 @@ mod test {
         let tokens = Scanner::scan("b c").unwrap();
         assert_eq!(
             tokens.tokens(),
-            &[
-                Token::Terminal('b'),
-                Token::Whitespace,
-                Token::Terminal('c'),
-            ]
+            &[Token::Terminal('b'), Token::Terminal('c'),]
         );
         let tokens = Scanner::scan("foo bar").unwrap();
         assert_eq!(
@@ -138,7 +181,6 @@ mod test {
                 Token::Terminal('f'),
                 Token::Terminal('o'),
                 Token::Terminal('o'),
-                Token::Whitespace,
                 Token::Terminal('b'),
                 Token::Terminal('a'),
                 Token::Terminal('r'),
@@ -155,19 +197,20 @@ mod test {
             tokens.tokens(),
             &[
                 Token::Gate(Gate::Or),
-                Token::Whitespace,
                 Token::Gate(Gate::Nand),
-                Token::Whitespace,
                 Token::Gate(Gate::Xor),
-                Token::Whitespace,
                 Token::Gate(Gate::Nor),
             ]
         );
 
-        let tokens = Scanner::scan("AND(").unwrap();
+        let tokens = Scanner::scan("(AND)").unwrap();
         assert_eq!(
             tokens.tokens(),
-            &[Token::Gate(Gate::And), Token::OpeningParenthesis]
+            &[
+                Token::OpeningParenthesis,
+                Token::Gate(Gate::And),
+                Token::ClosingParenthesis
+            ]
         );
     }
 
@@ -182,24 +225,21 @@ mod test {
 
     #[test]
     fn scan_expression() {
-        let tokens = Scanner::scan("aANDb)NAND XOR a b OR c)").unwrap();
+        let tokens = Scanner::scan("((aANDb)NAND XOR a b OR c)").unwrap();
         assert_eq!(
             tokens.tokens(),
             &[
+                Token::OpeningParenthesis,
+                Token::OpeningParenthesis,
                 Token::Terminal('a'),
                 Token::Gate(Gate::And),
                 Token::Terminal('b'),
                 Token::ClosingParenthesis,
                 Token::Gate(Gate::Nand),
-                Token::Whitespace,
                 Token::Gate(Gate::Xor),
-                Token::Whitespace,
                 Token::Terminal('a'),
-                Token::Whitespace,
                 Token::Terminal('b'),
-                Token::Whitespace,
                 Token::Gate(Gate::Or),
-                Token::Whitespace,
                 Token::Terminal('c'),
                 Token::ClosingParenthesis,
             ]

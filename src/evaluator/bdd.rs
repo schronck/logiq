@@ -85,7 +85,6 @@ where
                 (Some(_), None) => current_gate = Some(*gate),
                 _ => unreachable!("if tokens are properly parsed"),
             },
-            Token::Whitespace => unreachable!("if tokens are properly parsed"),
         }
     }
     current_bdd_func

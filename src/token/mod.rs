@@ -1,8 +1,8 @@
-mod parser;
+//mod parser;
 mod scanner;
 
 use crate::gate::Gate;
-use parser::{parse, ParserError};
+//use parser::{parse, ParserError};
 use scanner::{Scanner, ScannerError};
 
 use std::str::FromStr;
@@ -36,6 +36,9 @@ impl FromStr for ScannedTokens {
     }
 }
 
+pub enum Expression {}
+
+/*
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParsedTokens(Vec<Token>);
 
@@ -63,3 +66,4 @@ impl TryFrom<ScannedTokens> for ParsedTokens {
         Self::new(&input)
     }
 }
+*/
