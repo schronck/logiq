@@ -2,13 +2,11 @@ mod bdd;
 pub use bdd::build_bdd;
 
 use crate::requirement::Requirement;
-use crate::token::ParsedTokens;
+use crate::TerminalId;
 use boolean_expression::{BDDFunc, BDD};
 use futures::future::try_join_all;
 
 use std::collections::HashMap;
-
-type TerminalId = char;
 
 pub struct Evaluator<R> {
     bdd: BDD<TerminalId>,
@@ -17,6 +15,7 @@ pub struct Evaluator<R> {
     evals: HashMap<TerminalId, bool>,
 }
 
+/*
 impl<R: Requirement> Evaluator<R> {
     pub fn new(
         tokens: &ParsedTokens,
@@ -144,3 +143,4 @@ mod test {
         assert!(!evaluator.evaluate(&client).await.unwrap());
     }
 }
+*/
