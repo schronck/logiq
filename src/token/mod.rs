@@ -2,7 +2,7 @@ mod parser;
 mod scanner;
 
 use crate::gate::Gate;
-pub use parser::{parse, ParserError};
+use parser::{parse, ParserError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Token {
@@ -22,3 +22,15 @@ pub enum TokenTree {
         right: Box<TokenTree>,
     },
 }
+
+/*
+impl TokenTree {
+    pub fn new(source: &str) -> Result<Self, Error> {
+        parse(source)
+    }
+}
+
+impl FromStr for TokenTree {
+    type Err = Error
+}
+*/

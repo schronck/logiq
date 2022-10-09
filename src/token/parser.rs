@@ -15,8 +15,6 @@ pub enum ParserError {
     InvalidGatePlacement,
     #[error("{0}")]
     ScannerError(#[from] ScannerError),
-    #[error(transparent)]
-    Transparent(#[from] anyhow::Error),
 }
 
 pub fn parse(source: &str) -> Result<TokenTree, ParserError> {
@@ -30,25 +28,13 @@ fn parse_next(
     let mut current_tree: Option<TokenTree> = None;
     let mut current_gate: Option<Gate> = None;
     while let Some(token) = scanned.next() {
-        current_tree = match token {
+        (current_tree, current_gate) = match token {
             Token::Whitespace => unreachable!("use with pre-scanned input"),
             Token::OpeningParenthesis => {
-                if let Some(new_tree) = parse_next(scanned)? {
-                    match (current_tree, current_gate) {
-                        (None, None) => Some(new_tree),
-                        (None, Some(_)) => return Err(ParserError::InvalidGatePlacement),
-                        (Some(_), None) => return Err(ParserError::InvalidTerminalPlacement),
-                        (Some(tree), Some(gate)) => {
-                            current_gate = None;
-                            Some(TokenTree::Gate {
-                                gate,
-                                left: Box::new(tree),
-                                right: Box::new(new_tree),
-                            })
-                        }
-                    }
+                if let Some(new_leaf) = parse_next(scanned)? {
+                    try_finalize_leaf(current_tree, current_gate, new_leaf)?
                 } else {
-                    current_tree
+                    (current_tree, current_gate)
                 }
             }
             Token::ClosingParenthesis => {
@@ -58,30 +44,19 @@ fn parse_next(
                     return Ok(current_tree);
                 }
             }
-            Token::Terminal(c) => match (current_tree, current_gate) {
-                (None, None) => Some(TokenTree::Terminal(*c)),
-                (None, Some(_)) => return Err(ParserError::InvalidGatePlacement),
-                (Some(_), None) => return Err(ParserError::InvalidTerminalPlacement),
-                (Some(tree), Some(gate)) => {
-                    current_gate = None;
-                    Some(TokenTree::Gate {
-                        gate,
-                        left: Box::new(tree),
-                        right: Box::new(TokenTree::Terminal(*c)),
-                    })
-                }
-            },
+            Token::Terminal(c) => {
+                try_finalize_leaf(current_tree, current_gate, TokenTree::Terminal(*c))?
+            }
             Token::Gate(gate) => {
                 if current_tree.is_some() && current_gate.is_none() {
-                    current_gate = Some(*gate);
-                    current_tree
+                    (current_tree, Some(*gate))
                 } else {
                     return Err(ParserError::InvalidGatePlacement);
                 }
             }
         };
     }
-    // is there a gate without a second terminal?
+    // error if there's an unfinalized leaf (gate)
     if current_gate.is_some() {
         Err(ParserError::InvalidGatePlacement)
     } else {
@@ -89,8 +64,25 @@ fn parse_next(
     }
 }
 
-//fn finalize_leaf(current_tree: Option<TokenTree>, current_gate: Option<Gate>, new_leaf: TokenTree) {
-//}
+fn try_finalize_leaf(
+    current_tree: Option<TokenTree>,
+    current_gate: Option<Gate>,
+    new_leaf: TokenTree,
+) -> Result<(Option<TokenTree>, Option<Gate>), ParserError> {
+    match (current_tree, current_gate) {
+        (None, None) => Ok((Some(new_leaf), None)),
+        (None, Some(_)) => Err(ParserError::InvalidGatePlacement),
+        (Some(_), None) => Err(ParserError::InvalidTerminalPlacement),
+        (Some(tree), Some(gate)) => Ok((
+            Some(TokenTree::Gate {
+                gate,
+                left: Box::new(tree),
+                right: Box::new(new_leaf),
+            }),
+            None,
+        )),
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -170,7 +162,7 @@ mod test {
         ));
 
         assert!(is_equal_discriminant(
-            dbg!(&parse("a AND (OR) b").err().unwrap()),
+            &parse("a AND (OR) b").err().unwrap(),
             &ParserError::InvalidGatePlacement
         ));
 
@@ -217,6 +209,43 @@ mod test {
             _ => unreachable!(),
         }
         let parsed = parse("a AND (b OR c) XOR d").unwrap();
-        // TODO
+        // descending the tree is quite painful like this
+        match parsed {
+            TokenTree::Gate {
+                gate: Gate::Xor,
+                left: tree,
+                right: terminal_d,
+            } => {
+                match *terminal_d {
+                    TokenTree::Terminal('d') => {}
+                    _ => unreachable!(),
+                }
+                match *tree {
+                    TokenTree::Gate {
+                        gate: Gate::And,
+                        left: terminal_a,
+                        right: tree,
+                    } => {
+                        match *terminal_a {
+                            TokenTree::Terminal('a') => {}
+                            _ => unreachable!(),
+                        }
+                        match *tree {
+                            TokenTree::Gate {
+                                gate: Gate::Or,
+                                left: terminal_b,
+                                right: terminal_c,
+                            } => match (*terminal_b, *terminal_c) {
+                                (TokenTree::Terminal('b'), TokenTree::Terminal('c')) => {}
+                                _ => unreachable!(),
+                            },
+                            _ => unreachable!(),
+                        }
+                    }
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 }
