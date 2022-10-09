@@ -2,7 +2,7 @@ mod parser;
 mod scanner;
 
 use crate::gate::Gate;
-pub use parser::{Parser, ParserError};
+pub use parser::{parse, ParserError};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Token {

@@ -134,9 +134,8 @@ mod test {
 
     #[test]
     fn scan_parentheses() {
-        let tokens = Scanner::scan("( )").unwrap();
         assert_eq!(
-            tokens.tokens(),
+            &Scanner::scan("( )").unwrap(),
             &[Token::OpeningParenthesis, Token::ClosingParenthesis]
         );
 
@@ -167,16 +166,13 @@ mod test {
 
     #[test]
     fn scan_variable() {
-        let tokens = Scanner::scan("a").unwrap();
-        assert_eq!(tokens.tokens(), &[Token::Terminal('a')]);
-        let tokens = Scanner::scan("b c").unwrap();
+        assert_eq!(&Scanner::scan("a").unwrap(), &[Token::Terminal('a')]);
         assert_eq!(
-            tokens.tokens(),
+            &Scanner::scan("b c").unwrap(),
             &[Token::Terminal('b'), Token::Terminal('c'),]
         );
-        let tokens = Scanner::scan("foo bar").unwrap();
         assert_eq!(
-            tokens.tokens(),
+            &Scanner::scan("foo bar").unwrap(),
             &[
                 Token::Terminal('f'),
                 Token::Terminal('o'),
@@ -190,11 +186,9 @@ mod test {
 
     #[test]
     fn scan_gate() {
-        let tokens = Scanner::scan("AND").unwrap();
-        assert_eq!(tokens.tokens(), &[Token::Gate(Gate::And)]);
-        let tokens = Scanner::scan("OR NAND XOR NOR").unwrap();
+        assert_eq!(&Scanner::scan("AND").unwrap(), &[Token::Gate(Gate::And)]);
         assert_eq!(
-            tokens.tokens(),
+            &Scanner::scan("OR NAND XOR NOR").unwrap(),
             &[
                 Token::Gate(Gate::Or),
                 Token::Gate(Gate::Nand),
@@ -203,9 +197,8 @@ mod test {
             ]
         );
 
-        let tokens = Scanner::scan("(AND)").unwrap();
         assert_eq!(
-            tokens.tokens(),
+            &Scanner::scan("(AND)").unwrap(),
             &[
                 Token::OpeningParenthesis,
                 Token::Gate(Gate::And),
@@ -225,9 +218,8 @@ mod test {
 
     #[test]
     fn scan_expression() {
-        let tokens = Scanner::scan("((aANDb)NAND XOR a b OR c)").unwrap();
         assert_eq!(
-            tokens.tokens(),
+            &Scanner::scan("((aANDb)NAND XOR a b OR c)").unwrap(),
             &[
                 Token::OpeningParenthesis,
                 Token::OpeningParenthesis,
