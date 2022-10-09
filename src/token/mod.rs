@@ -2,7 +2,10 @@ mod parser;
 mod scanner;
 
 use crate::gate::Gate;
-use parser::{parse, ParserError};
+use parser::parse;
+pub use parser::ParseError;
+
+use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Token {
@@ -23,14 +26,15 @@ pub enum TokenTree {
     },
 }
 
-/*
 impl TokenTree {
-    pub fn new(source: &str) -> Result<Self, Error> {
+    pub fn new(source: &str) -> Result<Self, ParseError> {
         parse(source)
     }
 }
 
 impl FromStr for TokenTree {
-    type Err = Error
+    type Err = ParseError;
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        Self::new(input)
+    }
 }
-*/

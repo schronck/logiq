@@ -1,4 +1,4 @@
-use super::scanner::{Scanner, ScannerError};
+use super::scanner::{ScanError, Scanner};
 use super::{Token, TokenTree};
 use crate::gate::Gate;
 use thiserror::Error;
@@ -6,7 +6,7 @@ use thiserror::Error;
 use std::iter::Peekable;
 
 #[derive(Error, Debug)]
-pub enum ParserError {
+pub enum ParseError {
     #[error("the resulting expression has dangling terminals")]
     InvalidExpression,
     #[error("two consecutive terminals in expression")]
@@ -14,17 +14,17 @@ pub enum ParserError {
     #[error("gates must come between terminals")]
     InvalidGatePlacement,
     #[error("{0}")]
-    ScannerError(#[from] ScannerError),
+    ScanError(#[from] ScanError),
 }
 
-pub fn parse(source: &str) -> Result<TokenTree, ParserError> {
+pub fn parse(source: &str) -> Result<TokenTree, ParseError> {
     let scanned = Scanner::scan(source)?;
-    parse_next(&mut scanned.iter().peekable())?.ok_or(ParserError::InvalidExpression)
+    parse_next(&mut scanned.iter().peekable())?.ok_or(ParseError::InvalidExpression)
 }
 
 fn parse_next(
     scanned: &mut Peekable<std::slice::Iter<'_, Token>>,
-) -> Result<Option<TokenTree>, ParserError> {
+) -> Result<Option<TokenTree>, ParseError> {
     let mut current_tree: Option<TokenTree> = None;
     let mut current_gate: Option<Gate> = None;
     while let Some(token) = scanned.next() {
@@ -39,7 +39,7 @@ fn parse_next(
             }
             Token::ClosingParenthesis => {
                 if current_tree.is_some() && current_gate.is_some() {
-                    return Err(ParserError::InvalidGatePlacement);
+                    return Err(ParseError::InvalidGatePlacement);
                 } else {
                     return Ok(current_tree);
                 }
@@ -51,14 +51,14 @@ fn parse_next(
                 if current_tree.is_some() && current_gate.is_none() {
                     (current_tree, Some(*gate))
                 } else {
-                    return Err(ParserError::InvalidGatePlacement);
+                    return Err(ParseError::InvalidGatePlacement);
                 }
             }
         };
     }
     // error if there's an unfinalized leaf (gate)
     if current_gate.is_some() {
-        Err(ParserError::InvalidGatePlacement)
+        Err(ParseError::InvalidGatePlacement)
     } else {
         Ok(current_tree)
     }
@@ -68,11 +68,11 @@ fn try_finalize_leaf(
     current_tree: Option<TokenTree>,
     current_gate: Option<Gate>,
     new_leaf: TokenTree,
-) -> Result<(Option<TokenTree>, Option<Gate>), ParserError> {
+) -> Result<(Option<TokenTree>, Option<Gate>), ParseError> {
     match (current_tree, current_gate) {
         (None, None) => Ok((Some(new_leaf), None)),
-        (None, Some(_)) => Err(ParserError::InvalidGatePlacement),
-        (Some(_), None) => Err(ParserError::InvalidTerminalPlacement),
+        (None, Some(_)) => Err(ParseError::InvalidGatePlacement),
+        (Some(_), None) => Err(ParseError::InvalidTerminalPlacement),
         (Some(tree), Some(gate)) => Ok((
             Some(TokenTree::Gate {
                 gate,
@@ -88,7 +88,7 @@ fn try_finalize_leaf(
 mod test {
     use super::*;
 
-    fn is_equal_discriminant(this: &ParserError, that: &ParserError) -> bool {
+    fn is_equal_discriminant(this: &ParseError, that: &ParseError) -> bool {
         std::mem::discriminant(this) == std::mem::discriminant(that)
     }
 
@@ -116,7 +116,7 @@ mod test {
     #[test]
     fn parse_single_whitespace() {
         match parse(" ").err().unwrap() {
-            ParserError::ScannerError(ScannerError::EmptyExpression) => {}
+            ParseError::ScanError(ScanError::EmptyExpression) => {}
             _ => panic!("should be scanner error, empty expression"),
         }
     }
@@ -125,22 +125,22 @@ mod test {
     fn parse_invalid_terminals() {
         assert!(is_equal_discriminant(
             &parse("a b").err().unwrap(),
-            &ParserError::InvalidTerminalPlacement
+            &ParseError::InvalidTerminalPlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("(a AND c) b").err().unwrap(),
-            &ParserError::InvalidTerminalPlacement
+            &ParseError::InvalidTerminalPlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("(a) b").err().unwrap(),
-            &ParserError::InvalidTerminalPlacement
+            &ParseError::InvalidTerminalPlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("(((a)) (b))").err().unwrap(),
-            &ParserError::InvalidTerminalPlacement
+            &ParseError::InvalidTerminalPlacement
         ));
     }
 
@@ -148,32 +148,32 @@ mod test {
     fn parse_invalid_gates() {
         assert!(is_equal_discriminant(
             &parse("a AND OR b").err().unwrap(),
-            &ParserError::InvalidGatePlacement
+            &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("(a AND) OR b").err().unwrap(),
-            &ParserError::InvalidGatePlacement
+            &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("(a AND OR ) b").err().unwrap(),
-            &ParserError::InvalidGatePlacement
+            &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("a AND (OR) b").err().unwrap(),
-            &ParserError::InvalidGatePlacement
+            &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("(a NAND b OR )").err().unwrap(),
-            &ParserError::InvalidGatePlacement
+            &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
             &parse("a NAND (b OR ) XOR c").err().unwrap(),
-            &ParserError::InvalidGatePlacement
+            &ParseError::InvalidGatePlacement
         ));
     }
 

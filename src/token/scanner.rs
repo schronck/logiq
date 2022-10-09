@@ -6,7 +6,7 @@ use std::iter::Peekable;
 use std::str::{Chars, FromStr};
 
 #[derive(Error, Debug)]
-pub enum ScannerError {
+pub enum ScanError {
     #[error("parsed an empty expression")]
     EmptyExpression,
     #[error("input fully scanned")]
@@ -15,7 +15,7 @@ pub enum ScannerError {
     InvalidParentheses,
     #[error("invalid token: {0}")]
     InvalidToken(char),
-    #[error(transparent)]
+    #[error("{0}")]
     Transparent(#[from] anyhow::Error),
 }
 
@@ -28,7 +28,7 @@ impl<'a, 'b> Scanner<'a>
 where
     'b: 'a,
 {
-    pub fn scan(source: &'b str) -> Result<Vec<Token>, ScannerError> {
+    pub fn scan(source: &'b str) -> Result<Vec<Token>, ScanError> {
         let mut scanner = Self {
             source: source.chars().peekable(),
             lexeme: String::new(),
@@ -48,23 +48,23 @@ where
                     }
                     tokens.push(token);
                 }
-                Err(ScannerError::EofReached) => break,
+                Err(ScanError::EofReached) => break,
                 Err(e) => return Err(e),
             }
         }
 
         if tokens.is_empty() {
-            Err(ScannerError::EmptyExpression)
+            Err(ScanError::EmptyExpression)
         } else if parentheses != 0 {
-            Err(ScannerError::InvalidParentheses)
+            Err(ScanError::InvalidParentheses)
         } else {
             Ok(tokens)
         }
     }
 
-    fn scan_next(&mut self) -> Result<Token, ScannerError> {
+    fn scan_next(&mut self) -> Result<Token, ScanError> {
         self.lexeme.clear();
-        let next_char = self.advance().ok_or(ScannerError::EofReached)?;
+        let next_char = self.advance().ok_or(ScanError::EofReached)?;
 
         match next_char {
             c if matches!(c, ' ') => Ok(Token::Whitespace),
@@ -76,7 +76,7 @@ where
                 let boolean_gate = Gate::from_str(&self.lexeme)?;
                 Ok(Token::Gate(boolean_gate))
             }
-            _ => Err(ScannerError::InvalidToken(next_char)),
+            _ => Err(ScanError::InvalidToken(next_char)),
         }
     }
 
@@ -112,7 +112,7 @@ where
 mod test {
     use super::*;
 
-    fn is_equal_discriminant(this: &ScannerError, that: &ScannerError) -> bool {
+    fn is_equal_discriminant(this: &ScanError, that: &ScanError) -> bool {
         std::mem::discriminant(this) == std::mem::discriminant(that)
     }
 
@@ -120,7 +120,7 @@ mod test {
     fn scan_empty() {
         assert!(is_equal_discriminant(
             &Scanner::scan("").err().unwrap(),
-            &ScannerError::EmptyExpression
+            &ScanError::EmptyExpression
         ));
     }
 
@@ -128,7 +128,7 @@ mod test {
     fn scan_whitespace() {
         assert!(is_equal_discriminant(
             &Scanner::scan(" ").err().unwrap(),
-            &ScannerError::EmptyExpression
+            &ScanError::EmptyExpression
         ));
     }
 
@@ -142,25 +142,25 @@ mod test {
         let error = Scanner::scan("(()").err().unwrap();
         assert!(is_equal_discriminant(
             &error,
-            &ScannerError::InvalidParentheses,
+            &ScanError::InvalidParentheses,
         ));
 
         let error = Scanner::scan("    )").err().unwrap();
         assert!(is_equal_discriminant(
             &error,
-            &ScannerError::InvalidParentheses,
+            &ScanError::InvalidParentheses,
         ));
 
         let error = Scanner::scan("(())(").err().unwrap();
         assert!(is_equal_discriminant(
             &error,
-            &ScannerError::InvalidParentheses,
+            &ScanError::InvalidParentheses,
         ));
 
         let error = Scanner::scan("())))))))))))))").err().unwrap();
         assert!(is_equal_discriminant(
             &error,
-            &ScannerError::InvalidParentheses,
+            &ScanError::InvalidParentheses,
         ));
     }
 
