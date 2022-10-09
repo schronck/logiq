@@ -1,9 +1,9 @@
-mod parser;
-mod scanner;
+mod parse;
+mod scan;
 
 use crate::gate::Gate;
-use parser::parse;
-pub use parser::ParseError;
+use parse::parse;
+pub use parse::ParseError;
 
 use std::str::FromStr;
 

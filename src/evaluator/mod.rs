@@ -2,46 +2,44 @@ mod bdd;
 pub use bdd::build_bdd;
 
 use crate::requirement::Requirement;
+use crate::token::TokenTree;
 use crate::TerminalId;
 use boolean_expression::{BDDFunc, BDD};
 use futures::future::try_join_all;
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 pub struct Evaluator<R> {
     bdd: BDD<TerminalId>,
-    bdd_func: BDDFunc,
+    root_bdd_func: BDDFunc,
     requirements: HashMap<TerminalId, R>,
     evals: HashMap<TerminalId, bool>,
 }
 
-/*
 impl<R: Requirement> Evaluator<R> {
-    pub fn new(
-        tokens: &ParsedTokens,
-        requirements: HashMap<TerminalId, R>,
-    ) -> Result<Self, String> {
+    pub fn new(source: &str, requirements: HashMap<TerminalId, R>) -> Result<Self, anyhow::Error> {
+        let tree = TokenTree::from_str(source)?;
         let mut bdd = BDD::<char>::new();
-        let bdd_func = build_bdd(&mut bdd, tokens)?;
+        let root_bdd_func = build_bdd(&mut bdd, tree);
         let bdd_terminal_ids = bdd.labels();
 
-        if requirements.len() != bdd_terminal_ids.len() {
-            return Err(format!(
-                "number of requirements ({}) must match number of BDD terminals ({})",
-                requirements.len(),
-                bdd_terminal_ids.len()
-            ));
-        }
+        anyhow::ensure!(
+            requirements.len() == bdd_terminal_ids.len(),
+            "number of requirements ({}) must match number of BDD terminals ({})",
+            requirements.len(),
+            bdd_terminal_ids.len()
+        );
 
         Ok(Self {
             bdd,
-            bdd_func,
+            root_bdd_func,
             requirements,
             evals: HashMap::new(),
         })
     }
 
-    pub async fn evaluate(&mut self, querier: &R::Querier) -> Result<bool, String> {
+    pub async fn evaluate(&mut self, querier: &R::Querier) -> Result<bool, anyhow::Error> {
         let future_evals = self
             .requirements
             .values()
@@ -49,14 +47,14 @@ impl<R: Requirement> Evaluator<R> {
             .collect::<Vec<_>>();
         let evals = try_join_all(future_evals)
             .await
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| anyhow::anyhow!(e))?;
         self.evals = self
             .requirements
             .keys()
             .copied()
             .zip(evals.into_iter())
             .collect();
-        Ok(self.bdd.evaluate(self.bdd_func, &self.evals))
+        Ok(self.bdd.evaluate(self.root_bdd_func, &self.evals))
     }
 }
 
@@ -67,8 +65,6 @@ mod test {
     use async_trait::async_trait;
     use ethers::prelude::{Address, LocalWallet, Signature};
     use ethers::signers::Signer;
-
-    use std::str::FromStr;
 
     struct Free;
 
@@ -100,12 +96,11 @@ mod test {
 
     #[tokio::test]
     async fn test_free() {
-        let tokens = ParsedTokens::from_str("a").unwrap();
         let mut requirements = HashMap::new();
         requirements.insert('a', Free);
         let client = 0u8; // querier can be any type
 
-        let mut evaluator = Evaluator::new(&tokens, requirements).unwrap();
+        let mut evaluator = Evaluator::new("a", requirements).unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
     }
 
@@ -134,13 +129,10 @@ mod test {
         requirements.insert('a', controls_address_a);
         requirements.insert('b', controls_address_b);
 
-        let tokens = ParsedTokens::from_str("a AND b").unwrap();
-        let mut evaluator = Evaluator::new(&tokens, requirements.clone()).unwrap();
+        let mut evaluator = Evaluator::new("a AND b", requirements.clone()).unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
 
-        let tokens = ParsedTokens::from_str("a NAND b").unwrap();
-        let mut evaluator = Evaluator::new(&tokens, requirements).unwrap();
+        let mut evaluator = Evaluator::new("a NAND b", requirements).unwrap();
         assert!(!evaluator.evaluate(&client).await.unwrap());
     }
 }
-*/

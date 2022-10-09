@@ -1,4 +1,4 @@
-use super::scanner::{ScanError, Scanner};
+use super::scan::{ScanError, Scanner};
 use super::{Token, TokenTree};
 use crate::gate::Gate;
 use thiserror::Error;
@@ -182,6 +182,25 @@ mod test {
         // empty parentheses are "discarded"
         assert!(parse("a XOR () b").is_ok());
         assert!(parse("a NAND ( ()) b").is_ok());
+
+        let parsed = parse("z").unwrap();
+        match parsed {
+            TokenTree::Terminal('z') => {}
+            _ => unreachable!(),
+        }
+
+        let parsed = parse("((a) NOR ((b)))").unwrap();
+        match parsed {
+            TokenTree::Gate {
+                gate: Gate::Nor,
+                left: terminal_a,
+                right: terminal_b,
+            } => match (*terminal_a, *terminal_b) {
+                (TokenTree::Terminal('a'), TokenTree::Terminal('b')) => {}
+                _ => unreachable!(),
+            },
+            _ => unreachable!(),
+        }
 
         let parsed = parse("a AND b OR c").unwrap();
         match parsed {
