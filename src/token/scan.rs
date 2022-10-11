@@ -1,5 +1,6 @@
 use super::Token;
 use crate::gate::Gate;
+use crate::TerminalId;
 use thiserror::Error;
 
 use std::iter::Peekable;
@@ -70,7 +71,12 @@ where
             c if matches!(c, ' ') => Ok(Token::Whitespace),
             '(' => Ok(Token::OpeningParenthesis),
             ')' => Ok(Token::ClosingParenthesis),
-            c if c.is_ascii_lowercase() => Ok(Token::Terminal(c)),
+            c if c.is_ascii_digit() => {
+                self.advance_while(|x| x.is_ascii_digit());
+                let terminal_id =
+                    TerminalId::from_str_radix(&self.lexeme, 10).map_err(|e| anyhow::anyhow!(e))?;
+                Ok(Token::Terminal(terminal_id))
+            }
             c if c.is_ascii_uppercase() => {
                 self.advance_while(|x| x.is_ascii_uppercase());
                 let boolean_gate = Gate::from_str(&self.lexeme)?;
@@ -165,23 +171,21 @@ mod test {
     }
 
     #[test]
-    fn scan_variable() {
-        assert_eq!(&Scanner::scan("a").unwrap(), &[Token::Terminal('a')]);
+    fn scan_terminal() {
+        assert_eq!(&Scanner::scan("0").unwrap(), &[Token::Terminal(0)]);
+        assert_eq!(&Scanner::scan("77").unwrap(), &[Token::Terminal(77)]);
         assert_eq!(
-            &Scanner::scan("b c").unwrap(),
-            &[Token::Terminal('b'), Token::Terminal('c'),]
+            &Scanner::scan("3 123").unwrap(),
+            &[Token::Terminal(3), Token::Terminal(123),]
         );
         assert_eq!(
-            &Scanner::scan("foo bar").unwrap(),
-            &[
-                Token::Terminal('f'),
-                Token::Terminal('o'),
-                Token::Terminal('o'),
-                Token::Terminal('b'),
-                Token::Terminal('a'),
-                Token::Terminal('r'),
-            ]
+            &Scanner::scan("65535 0000").unwrap(),
+            &[Token::Terminal(65535), Token::Terminal(0),]
         );
+        assert!(is_equal_discriminant(
+            &Scanner::scan(&u128::MAX.to_string()).err().unwrap(),
+            &ScanError::Transparent(anyhow::anyhow!("overflow")),
+        ));
     }
 
     #[test]
@@ -219,20 +223,20 @@ mod test {
     #[test]
     fn scan_expression() {
         assert_eq!(
-            &Scanner::scan("((aANDb)NAND XOR a b OR c)").unwrap(),
+            &Scanner::scan("((0AND1)NAND XOR 123 999 OR 1024)").unwrap(),
             &[
                 Token::OpeningParenthesis,
                 Token::OpeningParenthesis,
-                Token::Terminal('a'),
+                Token::Terminal(0),
                 Token::Gate(Gate::And),
-                Token::Terminal('b'),
+                Token::Terminal(1),
                 Token::ClosingParenthesis,
                 Token::Gate(Gate::Nand),
                 Token::Gate(Gate::Xor),
-                Token::Terminal('a'),
-                Token::Terminal('b'),
+                Token::Terminal(123),
+                Token::Terminal(999),
                 Token::Gate(Gate::Or),
-                Token::Terminal('c'),
+                Token::Terminal(1024),
                 Token::ClosingParenthesis,
             ]
         );

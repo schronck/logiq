@@ -2,6 +2,7 @@ mod parse;
 mod scan;
 
 use crate::gate::Gate;
+use crate::TerminalId;
 use parse::parse;
 pub use parse::ParseError;
 
@@ -12,13 +13,13 @@ pub enum Token {
     Whitespace,
     OpeningParenthesis,
     ClosingParenthesis,
-    Terminal(char),
+    Terminal(TerminalId),
     Gate(Gate),
 }
 
 #[derive(Clone, Debug)]
 pub enum TokenTree {
-    Terminal(char),
+    Terminal(TerminalId),
     Gate {
         gate: Gate,
         left: Box<TokenTree>,

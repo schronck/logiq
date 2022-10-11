@@ -9,4 +9,4 @@ mod token;
 pub use evaluator::Evaluator;
 pub use requirement::Requirement;
 
-pub type TerminalId = char;
+pub type TerminalId = usize;

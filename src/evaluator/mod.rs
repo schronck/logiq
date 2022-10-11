@@ -13,14 +13,14 @@ use std::str::FromStr;
 pub struct Evaluator<R> {
     bdd: BDD<TerminalId>,
     root_bdd_func: BDDFunc,
-    requirements: HashMap<TerminalId, R>,
+    requirements: Vec<R>,
     evals: HashMap<TerminalId, bool>,
 }
 
 impl<R: Requirement> Evaluator<R> {
-    pub fn new(source: &str, requirements: HashMap<TerminalId, R>) -> Result<Self, anyhow::Error> {
+    pub fn new(source: &str, requirements: Vec<R>) -> Result<Self, anyhow::Error> {
         let tree = TokenTree::from_str(source)?;
-        let mut bdd = BDD::<char>::new();
+        let mut bdd = BDD::<TerminalId>::new();
         let root_bdd_func = build_bdd(&mut bdd, tree);
         let bdd_terminal_ids = bdd.labels();
 
@@ -42,18 +42,13 @@ impl<R: Requirement> Evaluator<R> {
     pub async fn evaluate(&mut self, querier: &R::Querier) -> Result<bool, anyhow::Error> {
         let future_evals = self
             .requirements
-            .values()
+            .iter()
             .map(|req| req.check(querier))
             .collect::<Vec<_>>();
         let evals = try_join_all(future_evals)
             .await
             .map_err(|e| anyhow::anyhow!(e))?;
-        self.evals = self
-            .requirements
-            .keys()
-            .copied()
-            .zip(evals.into_iter())
-            .collect();
+        self.evals = evals.into_iter().enumerate().collect();
         Ok(self.bdd.evaluate(self.root_bdd_func, &self.evals))
     }
 }
@@ -96,11 +91,10 @@ mod test {
 
     #[tokio::test]
     async fn test_free() {
-        let mut requirements = HashMap::new();
-        requirements.insert('a', Free);
+        let requirements = vec![Free];
         let client = 0u8; // querier can be any type
 
-        let mut evaluator = Evaluator::new("a", requirements).unwrap();
+        let mut evaluator = Evaluator::new("0", requirements).unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
     }
 
@@ -125,14 +119,12 @@ mod test {
             msg: msg.to_string(),
         };
 
-        let mut requirements = HashMap::new();
-        requirements.insert('a', controls_address_a);
-        requirements.insert('b', controls_address_b);
+        let requirements = vec![controls_address_a, controls_address_b];
 
-        let mut evaluator = Evaluator::new("a AND b", requirements.clone()).unwrap();
+        let mut evaluator = Evaluator::new("0 AND 1", requirements.clone()).unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
 
-        let mut evaluator = Evaluator::new("a NAND b", requirements).unwrap();
+        let mut evaluator = Evaluator::new("0 NAND 1", requirements).unwrap();
         assert!(!evaluator.evaluate(&client).await.unwrap());
     }
 }

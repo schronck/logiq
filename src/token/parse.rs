@@ -94,21 +94,21 @@ mod test {
 
     #[test]
     fn parse_single_variable() {
-        let tree = parse("p").unwrap();
+        let tree = parse("0").unwrap();
         match tree {
-            TokenTree::Terminal(c) => assert_eq!(c, 'p'),
+            TokenTree::Terminal(c) => assert_eq!(c, 0),
             _ => panic!("should be terminal"),
         }
 
-        let tree = parse("(p)").unwrap();
+        let tree = parse("(11)").unwrap();
         match tree {
-            TokenTree::Terminal(c) => assert_eq!(c, 'p'),
+            TokenTree::Terminal(c) => assert_eq!(c, 11),
             _ => panic!("should be terminal"),
         }
 
-        let tree = parse("((((p))))").unwrap();
+        let tree = parse("((((111))))").unwrap();
         match tree {
-            TokenTree::Terminal(c) => assert_eq!(c, 'p'),
+            TokenTree::Terminal(c) => assert_eq!(c, 111),
             _ => panic!("should be terminal"),
         }
     }
@@ -124,22 +124,22 @@ mod test {
     #[test]
     fn parse_invalid_terminals() {
         assert!(is_equal_discriminant(
-            &parse("a b").err().unwrap(),
+            &parse("0 1").err().unwrap(),
             &ParseError::InvalidTerminalPlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("(a AND c) b").err().unwrap(),
+            &parse("(1 AND 2) 3").err().unwrap(),
             &ParseError::InvalidTerminalPlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("(a) b").err().unwrap(),
+            &parse("(4) 5").err().unwrap(),
             &ParseError::InvalidTerminalPlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("(((a)) (b))").err().unwrap(),
+            &parse("(((6)) (7))").err().unwrap(),
             &ParseError::InvalidTerminalPlacement
         ));
     }
@@ -147,32 +147,32 @@ mod test {
     #[test]
     fn parse_invalid_gates() {
         assert!(is_equal_discriminant(
-            &parse("a AND OR b").err().unwrap(),
+            &parse("55 AND OR 44").err().unwrap(),
             &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("(a AND) OR b").err().unwrap(),
+            &parse("(10 AND) OR 99").err().unwrap(),
             &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("(a AND OR ) b").err().unwrap(),
+            &parse("(1000 AND OR ) 12").err().unwrap(),
             &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("a AND (OR) b").err().unwrap(),
+            &parse("0 AND (OR) 1").err().unwrap(),
             &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("(a NAND b OR )").err().unwrap(),
+            &parse("(1 NAND 4 OR )").err().unwrap(),
             &ParseError::InvalidGatePlacement
         ));
 
         assert!(is_equal_discriminant(
-            &parse("a NAND (b OR ) XOR c").err().unwrap(),
+            &parse("0 NAND (1 OR ) XOR 2").err().unwrap(),
             &ParseError::InvalidGatePlacement
         ));
     }
@@ -180,46 +180,46 @@ mod test {
     #[test]
     fn parse_valid_statement() {
         // empty parentheses are "discarded"
-        assert!(parse("a XOR () b").is_ok());
-        assert!(parse("a NAND ( ()) b").is_ok());
+        assert!(parse("1 XOR () 2").is_ok());
+        assert!(parse("1 NAND ( ()) 2").is_ok());
 
-        let parsed = parse("z").unwrap();
+        let parsed = parse("119").unwrap();
         match parsed {
-            TokenTree::Terminal('z') => {}
+            TokenTree::Terminal(119) => {}
             _ => unreachable!(),
         }
 
-        let parsed = parse("((a) NOR ((b)))").unwrap();
+        let parsed = parse("((15) NOR ((16)))").unwrap();
         match parsed {
             TokenTree::Gate {
                 gate: Gate::Nor,
-                left: terminal_a,
-                right: terminal_b,
-            } => match (*terminal_a, *terminal_b) {
-                (TokenTree::Terminal('a'), TokenTree::Terminal('b')) => {}
+                left: terminal_15,
+                right: terminal_16,
+            } => match (*terminal_15, *terminal_16) {
+                (TokenTree::Terminal(15), TokenTree::Terminal(16)) => {}
                 _ => unreachable!(),
             },
             _ => unreachable!(),
         }
 
-        let parsed = parse("a AND b OR c").unwrap();
+        let parsed = parse("0 AND 1 OR 2").unwrap();
         match parsed {
             TokenTree::Gate {
                 gate: Gate::Or,
                 left: tree,
-                right: terminal_c,
+                right: terminal_2,
             } => {
-                match *terminal_c {
-                    TokenTree::Terminal('c') => {}
+                match *terminal_2 {
+                    TokenTree::Terminal(2) => {}
                     _ => unreachable!(),
                 }
                 match *tree {
                     TokenTree::Gate {
                         gate: Gate::And,
-                        left: terminal_a,
-                        right: terminal_b,
-                    } => match (*terminal_a, *terminal_b) {
-                        (TokenTree::Terminal('a'), TokenTree::Terminal('b')) => {}
+                        left: terminal_0,
+                        right: terminal_1,
+                    } => match (*terminal_0, *terminal_1) {
+                        (TokenTree::Terminal(0), TokenTree::Terminal(1)) => {}
                         _ => unreachable!(),
                     },
                     _ => unreachable!(),
@@ -227,35 +227,35 @@ mod test {
             }
             _ => unreachable!(),
         }
-        let parsed = parse("a AND (b OR c) XOR d").unwrap();
+        let parsed = parse("0 AND (10 OR 11) XOR 0").unwrap();
         // descending the tree is quite painful like this
         match parsed {
             TokenTree::Gate {
                 gate: Gate::Xor,
                 left: tree,
-                right: terminal_d,
+                right: terminal_0,
             } => {
-                match *terminal_d {
-                    TokenTree::Terminal('d') => {}
+                match *terminal_0 {
+                    TokenTree::Terminal(0) => {}
                     _ => unreachable!(),
                 }
                 match *tree {
                     TokenTree::Gate {
                         gate: Gate::And,
-                        left: terminal_a,
+                        left: terminal_0,
                         right: tree,
                     } => {
-                        match *terminal_a {
-                            TokenTree::Terminal('a') => {}
+                        match *terminal_0 {
+                            TokenTree::Terminal(0) => {}
                             _ => unreachable!(),
                         }
                         match *tree {
                             TokenTree::Gate {
                                 gate: Gate::Or,
-                                left: terminal_b,
-                                right: terminal_c,
-                            } => match (*terminal_b, *terminal_c) {
-                                (TokenTree::Terminal('b'), TokenTree::Terminal('c')) => {}
+                                left: terminal_10,
+                                right: terminal_11,
+                            } => match (*terminal_10, *terminal_11) {
+                                (TokenTree::Terminal(10), TokenTree::Terminal(11)) => {}
                                 _ => unreachable!(),
                             },
                             _ => unreachable!(),
