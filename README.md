@@ -25,5 +25,5 @@ that implements `Requirement` and they can all be evaluated to a `bool` by
 performing the `check` function which is `async`, so multiple checks can be
 performed at once. Once all requirements return with a boolean, the `BDD`
 parsed from the `logic` field is evaluated on these terminal inputs. Note that
-terminals identifiers in expression `logic` denote the respective requirement's
+terminal identifiers in expression `logic` denote the respective requirement's
 index in the `requirements` vector.

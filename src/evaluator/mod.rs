@@ -61,6 +61,7 @@ mod test {
     use ethers::prelude::{Address, LocalWallet, Signature};
     use ethers::signers::Signer;
 
+    #[derive(Clone, Debug)]
     struct Free;
 
     #[async_trait]
@@ -90,7 +91,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_free() {
+    async fn free_requirement() {
         let requirements = vec![Free];
         let client = 0u8; // querier can be any type
 
@@ -99,7 +100,21 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_signatures() {
+    async fn reused_terminals() {
+        let requirements = vec![Free, Free, Free];
+        let client = 0u8; // querier can be any type
+
+        let mut evaluator = Evaluator::new("(0 AND 1) OR (0 AND 2)", requirements.clone()).unwrap();
+        assert!(evaluator.evaluate(&client).await.unwrap());
+        let mut evaluator =
+            Evaluator::new("(0 NAND 1) OR (0 AND 2)", requirements.clone()).unwrap();
+        assert!(evaluator.evaluate(&client).await.unwrap());
+        let mut evaluator = Evaluator::new("(0 NAND 1) OR (0 NAND 2)", requirements).unwrap();
+        assert!(!evaluator.evaluate(&client).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn eth_signatures() {
         let wallet_a = LocalWallet::new(&mut rand_core::OsRng);
         let wallet_b = LocalWallet::new(&mut rand_core::OsRng);
         let msg = "requiem aeternam dona eis";
