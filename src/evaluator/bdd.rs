@@ -1,31 +1,48 @@
+use anyhow::Result;
+use std::str::FromStr;
+
 use crate::gate::Gate;
 use crate::token::TokenTree;
 use crate::TerminalId;
 
 use boolean_expression::{BDDFunc, BDD};
 
-/// Builds a BDD (Binary Decision Diagram) from a parsed [TokenTree].
-///
-/// Works with (almost arbitrary) compound logic, e.g. `"((a OR b) OR (c AND
-/// d)) XOR a"`.
-pub fn build_bdd(bdd: &mut BDD<TerminalId>, token_tree: TokenTree) -> BDDFunc {
-    match token_tree {
-        TokenTree::Terminal(c) => bdd.terminal(c),
-        TokenTree::Gate { gate, left, right } => {
-            let left_bdd_func = build_bdd(bdd, *left);
-            let right_bdd_func = build_bdd(bdd, *right);
-            match gate {
-                Gate::And => bdd.and(left_bdd_func, right_bdd_func),
-                Gate::Or => bdd.or(left_bdd_func, right_bdd_func),
-                Gate::Nand => {
-                    let tmp_bdd_func = bdd.and(left_bdd_func, right_bdd_func);
-                    bdd.not(tmp_bdd_func)
+pub struct BDDData {
+    pub bdd: BDD<TerminalId>,
+    pub root_func: BDDFunc,
+}
+
+impl BDDData {
+    /// Builds a BDD (Binary Decision Diagram) from a parsed [TokenTree].
+    ///
+    /// Works with (almost arbitrary) compound logic, e.g. `"((a OR b) OR (c AND
+    /// d)) XOR a"`.
+    pub fn build_bdd_from_source(source: &str) -> Result<Self> {
+        let tree = TokenTree::from_str(source)?;
+        let mut bdd = BDD::<TerminalId>::new();
+        let root_func = Self::build_bdd(&mut bdd, tree);
+        Ok(BDDData { bdd, root_func })
+    }
+
+    fn build_bdd(bdd: &mut BDD<TerminalId>, token_tree: TokenTree) -> BDDFunc {
+        match token_tree {
+            TokenTree::Terminal(c) => bdd.terminal(c),
+            TokenTree::Gate { gate, left, right } => {
+                let left_bdd_func = Self::build_bdd(bdd, *left);
+                let right_bdd_func = Self::build_bdd(bdd, *right);
+                match gate {
+                    Gate::And => bdd.and(left_bdd_func, right_bdd_func),
+                    Gate::Or => bdd.or(left_bdd_func, right_bdd_func),
+                    Gate::Nand => {
+                        let tmp_bdd_func = bdd.and(left_bdd_func, right_bdd_func);
+                        bdd.not(tmp_bdd_func)
+                    }
+                    Gate::Nor => {
+                        let tmp_bdd_func = bdd.or(left_bdd_func, right_bdd_func);
+                        bdd.not(tmp_bdd_func)
+                    }
+                    Gate::Xor => bdd.xor(left_bdd_func, right_bdd_func),
                 }
-                Gate::Nor => {
-                    let tmp_bdd_func = bdd.or(left_bdd_func, right_bdd_func);
-                    bdd.not(tmp_bdd_func)
-                }
-                Gate::Xor => bdd.xor(left_bdd_func, right_bdd_func),
             }
         }
     }
@@ -35,13 +52,13 @@ pub fn build_bdd(bdd: &mut BDD<TerminalId>, token_tree: TokenTree) -> BDDFunc {
 mod test {
     use super::*;
     use std::collections::HashMap;
-    use std::str::FromStr;
 
     #[test]
     fn build_bdd_single_terminal() {
-        let mut bdd = BDD::<TerminalId>::new();
-        let tree = TokenTree::from_str("0").unwrap();
-        let bdd_func = build_bdd(&mut bdd, tree);
+        let bdd_data = BDDData::build_bdd_from_source("0").unwrap();
+        let bdd = bdd_data.bdd;
+        let bdd_func = bdd_data.root_func;
+
         assert_eq!(bdd.labels(), &[0]);
 
         let mut evals = HashMap::new();
@@ -54,9 +71,10 @@ mod test {
 
     #[test]
     fn build_bdd_basic_and() {
-        let mut bdd = BDD::<TerminalId>::new();
-        let tree = TokenTree::from_str("111 AND 222").unwrap();
-        let bdd_func = build_bdd(&mut bdd, tree);
+        let bdd_data = BDDData::build_bdd_from_source("111 AND 222").unwrap();
+        let bdd = bdd_data.bdd;
+        let bdd_func = bdd_data.root_func;
+
         // NOTE bdd.labels() returns labels in a random order
         assert_eq!(bdd.labels().len(), 2);
         assert!(bdd.labels().contains(&111));
@@ -73,9 +91,10 @@ mod test {
 
     #[test]
     fn build_bdd_basic_or() {
-        let mut bdd = BDD::<TerminalId>::new();
-        let tree = TokenTree::from_str("999   OR1000").unwrap();
-        let bdd_func = build_bdd(&mut bdd, tree);
+        let bdd_data = BDDData::build_bdd_from_source("999   OR1000").unwrap();
+        let bdd = bdd_data.bdd;
+        let bdd_func = bdd_data.root_func;
+
         // NOTE bdd.labels() returns labels in a random order
         assert_eq!(bdd.labels().len(), 2);
         assert!(bdd.labels().contains(&999));
@@ -95,9 +114,9 @@ mod test {
 
     #[test]
     fn build_bdd_compound() {
-        let mut bdd = BDD::<TerminalId>::new();
-        let tree = TokenTree::from_str("0 AND 1 OR ((0 NAND 3) OR 4)").unwrap();
-        let bdd_func = build_bdd(&mut bdd, tree);
+        let bdd_data = BDDData::build_bdd_from_source("0 AND 1 OR ((0 NAND 3) OR 4)").unwrap();
+        let bdd = bdd_data.bdd;
+        let bdd_func = bdd_data.root_func;
         // NOTE bdd.labels() returns labels in a random order
         assert_eq!(bdd.labels().len(), 4);
         assert!(bdd.labels().contains(&0));

@@ -1,14 +1,13 @@
 mod bdd;
-pub use bdd::build_bdd;
 
 use crate::requirement::Requirement;
-use crate::token::TokenTree;
 use crate::TerminalId;
 use boolean_expression::{BDDFunc, BDD};
 use futures::future::try_join_all;
 
 use std::collections::HashMap;
-use std::str::FromStr;
+
+use self::bdd::BDDData;
 
 pub struct Evaluator<R> {
     bdd: BDD<TerminalId>,
@@ -18,10 +17,10 @@ pub struct Evaluator<R> {
 }
 
 impl<R: Requirement> Evaluator<R> {
-    pub fn new(source: &str, requirements: Vec<R>) -> Result<Self, anyhow::Error> {
-        let tree = TokenTree::from_str(source)?;
-        let mut bdd = BDD::<TerminalId>::new();
-        let root_bdd_func = build_bdd(&mut bdd, tree);
+    pub fn new(bdd_data: BDDData, requirements: Vec<R>) -> Result<Self, anyhow::Error> {
+        let bdd = bdd_data.bdd;
+        let root_func = bdd_data.root_func;
+
         let bdd_terminal_ids = bdd.labels();
 
         anyhow::ensure!(
@@ -33,7 +32,7 @@ impl<R: Requirement> Evaluator<R> {
 
         Ok(Self {
             bdd,
-            root_bdd_func,
+            root_bdd_func: root_func,
             requirements,
             evals: HashMap::new(),
         })
@@ -95,7 +94,8 @@ mod test {
         let requirements = vec![Free];
         let client = 0u8; // querier can be any type
 
-        let mut evaluator = Evaluator::new("0", requirements).unwrap();
+        let mut evaluator =
+            Evaluator::new(BDDData::build_bdd_from_source("0").unwrap(), requirements).unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
     }
 
@@ -104,12 +104,23 @@ mod test {
         let requirements = vec![Free, Free, Free];
         let client = 0u8; // querier can be any type
 
-        let mut evaluator = Evaluator::new("(0 AND 1) OR (0 AND 2)", requirements.clone()).unwrap();
+        let mut evaluator = Evaluator::new(
+            BDDData::build_bdd_from_source("(0 AND 1) OR (0 AND 2)").unwrap(),
+            requirements.clone(),
+        )
+        .unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
-        let mut evaluator =
-            Evaluator::new("(0 NAND 1) OR (0 AND 2)", requirements.clone()).unwrap();
+        let mut evaluator = Evaluator::new(
+            BDDData::build_bdd_from_source("(0 NAND 1) OR (0 AND 2)").unwrap(),
+            requirements.clone(),
+        )
+        .unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
-        let mut evaluator = Evaluator::new("(0 NAND 1) OR (0 NAND 2)", requirements).unwrap();
+        let mut evaluator = Evaluator::new(
+            BDDData::build_bdd_from_source("(0 NAND 1) OR (0 NAND 2)").unwrap(),
+            requirements,
+        )
+        .unwrap();
         assert!(!evaluator.evaluate(&client).await.unwrap());
     }
 
@@ -136,10 +147,18 @@ mod test {
 
         let requirements = vec![controls_address_a, controls_address_b];
 
-        let mut evaluator = Evaluator::new("0 AND 1", requirements.clone()).unwrap();
+        let mut evaluator = Evaluator::new(
+            BDDData::build_bdd_from_source("0 AND 1").unwrap(),
+            requirements.clone(),
+        )
+        .unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
 
-        let mut evaluator = Evaluator::new("0 NAND 1", requirements).unwrap();
+        let mut evaluator = Evaluator::new(
+            BDDData::build_bdd_from_source("0 NAND 1").unwrap(),
+            requirements,
+        )
+        .unwrap();
         assert!(!evaluator.evaluate(&client).await.unwrap());
     }
 }
