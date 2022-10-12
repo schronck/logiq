@@ -21,7 +21,7 @@ impl FromStr for BDDData {
 }
 
 impl BDDData {
-    /// Builds a BDD (Binary Decision Diagram) from a parsed [TokenTree].
+    /// Builds a BDD (Binary Decision Diagram) from a parsed [`TokenTree`].
     ///
     /// Works with (almost arbitrary) compound logic, e.g. `"((a OR b) OR (c AND
     /// d)) XOR a"`.
