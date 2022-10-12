@@ -72,13 +72,13 @@ where
             '(' => Ok(Token::OpeningParenthesis),
             ')' => Ok(Token::ClosingParenthesis),
             c if c.is_ascii_digit() => {
-                self.advance_while(|x| x.is_ascii_digit());
+                self.advance_while(char::is_ascii_digit);
                 let terminal_id =
                     TerminalId::from_str_radix(&self.lexeme, 10).map_err(|e| anyhow::anyhow!(e))?;
                 Ok(Token::Terminal(terminal_id))
             }
             c if c.is_ascii_uppercase() => {
-                self.advance_while(|x| x.is_ascii_uppercase());
+                self.advance_while(char::is_ascii_digit);
                 let boolean_gate = Gate::from_str(&self.lexeme)?;
                 Ok(Token::Gate(boolean_gate))
             }
