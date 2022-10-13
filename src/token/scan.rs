@@ -78,7 +78,7 @@ where
                 Ok(Token::Terminal(terminal_id))
             }
             c if c.is_ascii_uppercase() => {
-                self.advance_while(char::is_ascii_digit);
+                self.advance_while(char::is_ascii_uppercase);
                 let boolean_gate = Gate::from_str(&self.lexeme)?;
                 Ok(Token::Gate(boolean_gate))
             }

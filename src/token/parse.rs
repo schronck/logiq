@@ -38,10 +38,12 @@ fn parse_next(
                 }
             }
             Token::ClosingParenthesis => {
-                if current_tree.is_some() && current_gate.is_some() {
-                    return Err(ParseError::InvalidGatePlacement);
-                }
-                return Ok(current_tree);
+                let result = if current_tree.is_some() && current_gate.is_some() {
+                    Err(ParseError::InvalidGatePlacement)
+                } else {
+                    Ok(current_tree)
+                };
+                return result;
             }
             Token::Terminal(c) => {
                 try_finalize_leaf(current_tree, current_gate, TokenTree::Terminal(*c))?

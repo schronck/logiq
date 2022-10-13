@@ -1,4 +1,5 @@
 mod bdd;
+pub use bdd::BDDData;
 
 use crate::requirement::Requirement;
 use crate::TerminalId;
@@ -6,8 +7,6 @@ use boolean_expression::{BDDFunc, BDD};
 use futures::future::try_join_all;
 
 use std::collections::HashMap;
-
-use self::bdd::BDDData;
 
 pub struct Evaluator<R> {
     bdd: BDD<TerminalId>,

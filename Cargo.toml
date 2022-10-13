@@ -10,13 +10,20 @@ opt-level = 3
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-boolean_expression = "0.4.4"
+boolean_expression = { git = "http://github.com/agoraxyz/boolean_expression.git", features = ["serde-borsh"] }
 futures = "0.3.24"
 thiserror = "1"
 
 [dev-dependencies]
+borsh = "0.9.3"
+criterion = "0.4.0"
 ethers = "0.17.0"
 rand_core = "0.6.4"
 reqwest = { version = "0.11.11", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.20.1", features = ["macros", "rt-multi-thread"] }
+
+[[bench]]
+name = "bench_parsing"
+path = "benches/parsing.rs"
+harness = false

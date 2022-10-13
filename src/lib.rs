@@ -1,12 +1,9 @@
 #![deny(clippy::all)]
 #![deny(clippy::dbg_macro)]
 
-mod evaluator;
-mod gate;
-mod requirement;
-mod token;
-
-pub use evaluator::Evaluator;
-pub use requirement::Requirement;
+pub mod evaluator;
+pub mod gate;
+pub mod requirement;
+pub mod token;
 
 pub type TerminalId = usize;
