@@ -51,7 +51,7 @@ fn bench_bdd_build(c: &mut Criterion) {
     let now = std::time::Instant::now();
     let bdd = BDDData::from_str(&expression_large).unwrap();
     println!(
-        "bdd labels len: {}, elapsed: {} ms",
+        "BDD LABELS: {}, ELAPSED: {} ms",
         bdd.bdd.labels().len(),
         now.elapsed().as_millis()
     );
@@ -92,19 +92,19 @@ fn bench_bdd_serialization(c: &mut Criterion) {
     group.bench_function("bench_ser_10", |b| {
         b.iter(|| bdd_short.bdd.try_to_vec().unwrap());
     });
-    group.bench_function("bench_ser_100", |b| {
+    group.bench_function("bench_ser_20", |b| {
         b.iter(|| bdd_medium.bdd.try_to_vec().unwrap());
     });
-    group.bench_function("bench_ser_1000", |b| {
+    group.bench_function("bench_ser_30", |b| {
         b.iter(|| bdd_long.bdd.try_to_vec().unwrap());
     });
     group.bench_function("bench_de_10", |b| {
         b.iter(|| BDD::<TerminalId>::try_from_slice(&ser_short).unwrap());
     });
-    group.bench_function("bench_de_100", |b| {
+    group.bench_function("bench_de_20", |b| {
         b.iter(|| BDD::<TerminalId>::try_from_slice(&ser_medium).unwrap());
     });
-    group.bench_function("bench_de_1000", |b| {
+    group.bench_function("bench_de_30", |b| {
         b.iter(|| BDD::<TerminalId>::try_from_slice(&ser_long).unwrap());
     });
 }
