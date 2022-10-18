@@ -123,13 +123,13 @@ fn bench_bdd_evaluation(c: &mut Criterion) {
 
     let map_10 = (0..expression_10.len())
         .map(|i| (i, (i % 2) != 0))
-        .collect::<HashMap<usize, bool>>();
+        .collect::<HashMap<TerminalId, bool>>();
     let map_20 = (0..expression_20.len())
         .map(|i| (i, (i % 2) != 0))
-        .collect::<HashMap<usize, bool>>();
+        .collect::<HashMap<TerminalId, bool>>();
     let map_30 = (0..expression_30.len())
         .map(|i| (i, (i % 2) != 0))
-        .collect::<HashMap<usize, bool>>();
+        .collect::<HashMap<TerminalId, bool>>();
 
     group.bench_function("bench_eval_10", |b| {
         b.iter(|| bdd_10.bdd.evaluate(bdd_10.root_bdd_func, &map_10));
@@ -142,11 +142,44 @@ fn bench_bdd_evaluation(c: &mut Criterion) {
     });
 }
 
+fn bench_tree_evaluation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("parsing");
+    let mut rng = OsRng;
+    let expression_10 = generate_expression(&mut rng, 10);
+    let expression_100 = generate_expression(&mut rng, 100);
+    let expression_1000 = generate_expression(&mut rng, 1000);
+
+    let tree_10 = TokenTree::from_str(&expression_10).unwrap();
+    let tree_100 = TokenTree::from_str(&expression_100).unwrap();
+    let tree_1000 = TokenTree::from_str(&expression_1000).unwrap();
+
+    let map_10 = (0..expression_10.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+    let map_100 = (0..expression_100.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+    let map_1000 = (0..expression_1000.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+
+    group.bench_function("bench_10", |b| {
+        b.iter(|| tree_10.evaluate(&map_10).unwrap());
+    });
+    group.bench_function("bench_100", |b| {
+        b.iter(|| tree_100.evaluate(&map_100).unwrap());
+    });
+    group.bench_function("bench_1000", |b| {
+        b.iter(|| tree_1000.evaluate(&map_1000).unwrap());
+    });
+}
+
 criterion_group!(
     benches,
     bench_parsing,
     bench_bdd_build,
     bench_bdd_serialization,
-    bench_bdd_evaluation
+    bench_bdd_evaluation,
+    bench_tree_evaluation,
 );
 criterion_main!(benches);
