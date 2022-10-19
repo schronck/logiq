@@ -4,29 +4,39 @@ use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature as SolSignature;
 use solana_sdk::signer::{keypair::Keypair, Signer};
 
+use reqwest::Client;
+
 pub type Balance = u128;
 
-trait Platform {
+trait Platform: Sync {
     type User: Identity + Sync;
     fn endpoint(&self) -> &str;
 }
 
+#[async_trait]
 trait Requirement {
     type Source: Platform;
-    type VerificationData: Sized;
-    fn build_request(
+    type Extrinsic: Sized + Sync + Send;
+    async fn retrieve_extrinsic(
         &self,
         source: &Self::Source,
-        querier: &reqwest::Client,
-    ) -> Option<request::Request> {
-        None
-    }
-
-    fn check(
-        &self,
         user: &<Self::Source as Platform>::User,
-        data: &Self::VerificationData,
-    ) -> Result<bool, String>;
+        client: &Client,
+    ) -> Result<Self::Extrinsic, String>;
+
+    async fn check_identity(&self, user: &<Self::Source as Platform>::User) -> bool;
+
+    async fn check_extrinsic(&self, extrinsic: &Self::Extrinsic) -> bool;
+
+    async fn check(
+        &self,
+        source: &Self::Source,
+        user: &<Self::Source as Platform>::User,
+        client: &Client,
+    ) -> Result<bool, String> {
+        let extrinsic = self.retrieve_extrinsic(source, user, client).await?;
+        Ok(self.check_identity(user).await && self.check_extrinsic(&extrinsic).await)
+    }
 }
 
 trait Identity {
@@ -97,43 +107,64 @@ enum Relation {
     LessOrEqual,
 }
 
-struct RequiredBalance<T: Identity> {
-    balance_type: BalanceType<T>,
+struct RequiredBalance<T: Platform> {
+    balance_type: BalanceType<<T as Platform>::User>,
     relation: Relation,
     amount: Balance,
 }
 
 struct Allowlist<T: Platform>(Vec<<<T as Platform>::User as Identity>::Identifier>);
 
+#[async_trait]
 impl<T: Platform + Sync> Requirement for Allowlist<T> {
     type Source = T;
-    type VerificationData = Option<()>;
+    type Extrinsic = bool;
 
-    fn check(
+    async fn retrieve_extrinsic(
         &self,
-        user: &<Self::Source as Platform>::User,
-        _data: &OSelf::VerificationData,
-    ) -> Result<bool, String> {
-        if !user.verify() {
-            Ok(false)
-        } else {
-            Ok(self.0.iter().any(|id| id == user.identity()))
-        }
+        _source: &Self::Source,
+        _user: &<Self::Source as Platform>::User,
+        _client: &Client,
+    ) -> Result<Self::Extrinsic, String> {
+        Ok(true)
+    }
+
+    async fn check_identity(&self, user: &<Self::Source as Platform>::User) -> bool {
+        user.verify() && self.0.iter().any(|id| id == user.identifier())
+    }
+
+    async fn check_extrinsic(&self, extrinsic: &Self::Extrinsic) -> bool {
+        *extrinsic
     }
 }
 
+#[async_trait]
 impl<T: Platform + Sync> Requirement for RequiredBalance<T> {
     type Source = T;
-    type VerificationData = Balance; // type alias for u128
+    type Extrinsic = Balance; // type alias for u128
 
-    fn build_request(
+    async fn retrieve_extrinsic(
         &self,
-        user: &Self::User,
-        client: &reqwest::Client,
-    ) -> Option<reqwest::Request> {
+        source: &Self::Source,
+        user: &<Self::Source as Platform>::User,
+        client: &Client,
+    ) -> Result<Self::Extrinsic, String> {
+        todo!()
     }
 
-    fn check(&self, user: &<Self::Source as Platform>::User, data: &Self::VerificationData) {}
+    async fn check_extrinsic(&self, extrinsic: &Self::Extrinsic) -> bool {
+        match self.relation {
+            Relation::Equal => *extrinsic == self.amount,
+            Relation::Greater => *extrinsic > self.amount,
+            Relation::GreaterOrEqual => *extrinsic >= self.amount,
+            Relation::Less => *extrinsic < self.amount,
+            Relation::LessOrEqual => *extrinsic <= self.amount,
+        }
+    }
+
+    async fn check_identity(&self, user: &<Self::Source as Platform>::User) -> bool {
+        user.verify()
+    }
 }
 
 fn main() {}
