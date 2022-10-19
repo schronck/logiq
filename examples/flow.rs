@@ -1,18 +1,24 @@
 use async_trait::async_trait;
 use ethers::prelude::{Address, LocalWallet, Signature as EvmSignature};
+use futures::future::try_join_all;
 use solana_client::rpc_client::RpcClient as SolClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature as SolSignature;
 use solana_sdk::signer::{keypair::Keypair, Signer};
-use web3::transports::Http as HttpTransport;
 use web3::types::U256;
-use web3::Web3 as EvmClient;
 
+use std::collections::HashMap;
+
+pub type EvmClient = web3::Web3<web3::transports::Http>;
 pub type Balance = u128;
 
 trait Platform: Sync {
+    const ID: u32;
+
     type User: Identity + Sync;
     type Client: Sync;
+
+    fn identifier(&self) -> u32;
 }
 
 pub enum EvmChain {
@@ -23,19 +29,21 @@ pub enum EvmChain {
 pub struct Solana;
 
 impl Platform for EvmChain {
+    const ID: u32 = 0;
     type User = EvmIdentity;
-    type Client = EvmClient<HttpTransport>;
+    type Client = EvmClient;
 }
 
 impl Platform for Solana {
+    const ID: u32 = 1;
     type User = SolIdentity;
     type Client = SolClient;
 }
 
 #[async_trait]
-trait Requirement {
+trait ExternalRequirement {
     type Source: Platform;
-    type Extrinsic: Sized + Sync + Send;
+    type ExternalData: Sized + Sync + Send;
 
     async fn check(
         &self,
@@ -127,24 +135,16 @@ struct RequiredBalance<T: Platform, B> {
 
 struct Allowlist<T: Platform>(Vec<<<T as Platform>::User as Identity>::Identifier>);
 
-#[async_trait]
-impl<T: Platform + Sync> Requirement for Allowlist<T> {
-    type Source = T;
-    type Extrinsic = bool;
-
-    async fn check(
-        &self,
-        user: &<Self::Source as Platform>::User,
-        _client: &<Self::Source as Platform>::Client,
-    ) -> Result<bool, String> {
-        Ok(self.0.iter().any(|id| id == user.identifier()))
+impl<T: Platform> Allowlist<T> {
+    pub fn is_member(&self, identifier: &<<T as Platform>::User as Identity>::Identifier) -> bool {
+        self.0.iter().any(|id| id == identifier)
     }
 }
 
 #[async_trait]
-impl Requirement for RequiredBalance<Solana, u64> {
+impl ExternalRequirement for RequiredBalance<Solana, u64> {
     type Source = Solana;
-    type Extrinsic = u64;
+    type ExternalData = u64;
 
     async fn check(
         &self,
@@ -163,9 +163,9 @@ impl Requirement for RequiredBalance<Solana, u64> {
 }
 
 #[async_trait]
-impl Requirement for RequiredBalance<EvmChain, U256> {
+impl ExternalRequirement for RequiredBalance<EvmChain, U256> {
     type Source = EvmChain;
-    type Extrinsic = U256;
+    type ExternalData = U256;
 
     async fn check(
         &self,
@@ -185,30 +185,55 @@ impl Requirement for RequiredBalance<EvmChain, U256> {
     }
 }
 
-#[async_trait]
-impl Requirement for EvmIdentity {
-    type Source = EvmChain;
-    type Extrinsic = bool;
+enum Requirement {
+    Free,
+    EvmSignature(EvmSignature),
+    SolSignature(SolSignature),
+    EvmBalance(RequiredBalance<EvmChain, U256>),
+    SolBalance(RequiredBalance<Solana, u64>),
+    EvmAllowlist(Allowlist<EvmChain>),
+    SolAllowlist(Allowlist<Solana>),
+}
 
-    async fn check(
+// NOTE in the long term this could be merged into a single client
+// that sends specific json to specific endpoints because
+// an evm client and a sol client are just wrappers around a
+// reqwest client
+struct Evaluator {
+    evm: EvmClient,
+    sol: SolClient,
+}
+
+impl Evaluator {
+    async fn evaluate<'a>(
         &self,
-        _user: &<Self::Source as Platform>::User,
-        _client: &<Self::Source as Platform>::Client,
-    ) -> Result<bool, String> {
-        Ok(self.verify())
+        identities: &'a HashMap<u32, &'a dyn Identity>,
+        requirements: &[Requirement],
+    ) -> HashMap<requiem::TerminalId, bool> {
+        let mut evaluations = HashMap::<requiem::TerminalId, bool>::new();
+        let mut externals = HashMap::new();
+        for (i, requirement) in requirements.iter().enumerate() {
+            match requirement {
+                Free => evaluations.insert(i, true),
+                Requirement::EvmSignature(sig) | Requirement::SolSignature(sig) => {
+                    evaluations.insert(i, sig.verify())
+                }
+                Requirement::EvmAllowlist(list) => {
+                    let result = if let Some(id) = identities.get(EvmChain::ID) {
+                        list.is_member(id)
+                    } else {
+                        false
+                    };
+                    evaluations.insert(i, result);
+                }
+                Requirement::SolAllowlist(list) => {
+                    todo!();
+                }
+                _ => todo!(),
+            }
+        }
+        todo!()
     }
 }
 
-#[async_trait]
-impl Requirement for SolIdentity {
-    type Source = Solana;
-    type Extrinsic = bool;
-
-    async fn check(
-        &self,
-        _user: &<Self::Source as Platform>::User,
-        _client: &<Self::Source as Platform>::Client,
-    ) -> Result<bool, String> {
-        Ok(self.verify())
-    }
-}
+fn main() {}
