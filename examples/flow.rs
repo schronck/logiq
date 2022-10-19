@@ -1,42 +1,47 @@
 use async_trait::async_trait;
-use ethers::prelude::{Address, LocalWallet, Signature as EthSignature};
+use ethers::prelude::{Address, LocalWallet, Signature as EvmSignature};
+use solana_client::rpc_client::RpcClient as SolClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature as SolSignature;
 use solana_sdk::signer::{keypair::Keypair, Signer};
-
-use reqwest::Client;
+use web3::transports::Http as HttpTransport;
+use web3::types::U256;
+use web3::Web3 as EvmClient;
 
 pub type Balance = u128;
 
 trait Platform: Sync {
     type User: Identity + Sync;
-    fn endpoint(&self) -> &str;
+    type Client: Sync;
+}
+
+pub enum EvmChain {
+    Ethereum,
+    Polygon,
+}
+
+pub struct Solana;
+
+impl Platform for EvmChain {
+    type User = EvmIdentity;
+    type Client = EvmClient<HttpTransport>;
+}
+
+impl Platform for Solana {
+    type User = SolIdentity;
+    type Client = SolClient;
 }
 
 #[async_trait]
 trait Requirement {
     type Source: Platform;
     type Extrinsic: Sized + Sync + Send;
-    async fn retrieve_extrinsic(
-        &self,
-        source: &Self::Source,
-        user: &<Self::Source as Platform>::User,
-        client: &Client,
-    ) -> Result<Self::Extrinsic, String>;
-
-    async fn check_identity(&self, user: &<Self::Source as Platform>::User) -> bool;
-
-    async fn check_extrinsic(&self, extrinsic: &Self::Extrinsic) -> bool;
 
     async fn check(
         &self,
-        source: &Self::Source,
         user: &<Self::Source as Platform>::User,
-        client: &Client,
-    ) -> Result<bool, String> {
-        let extrinsic = self.retrieve_extrinsic(source, user, client).await?;
-        Ok(self.check_identity(user).await && self.check_extrinsic(&extrinsic).await)
-    }
+        client: &<Self::Source as Platform>::Client,
+    ) -> Result<bool, String>;
 }
 
 trait Identity {
@@ -45,19 +50,19 @@ trait Identity {
     fn identifier(&self) -> &Self::Identifier;
 }
 
-struct EthereumSignature {
+struct EvmIdentity {
     address: Address,
-    signature: EthSignature,
+    signature: EvmSignature,
     msg: String,
 }
 
-struct SolanaSignature {
+struct SolIdentity {
     pubkey: Pubkey,
     signature: SolSignature,
     msg: String,
 }
 
-impl Identity for EthereumSignature {
+impl Identity for EvmIdentity {
     type Identifier = Address;
     fn verify(&self) -> bool {
         // TODO check msg is something that we expect
@@ -71,7 +76,7 @@ impl Identity for EthereumSignature {
     }
 }
 
-impl Identity for SolanaSignature {
+impl Identity for SolIdentity {
     type Identifier = Pubkey;
     fn verify(&self) -> bool {
         // TODO check msg is something that we expect
@@ -92,12 +97,7 @@ enum TokenType<T: Identity> {
         address: T::Identifier,
         id: Option<u32>,
     },
-    Other {
-        metadata: [u8; 512], // e.g. ERC-1155
-    },
 }
-
-type BalanceType<T> = Option<TokenType<T>>;
 
 enum Relation {
     Equal,
@@ -107,10 +107,22 @@ enum Relation {
     LessOrEqual,
 }
 
-struct RequiredBalance<T: Platform> {
-    balance_type: BalanceType<<T as Platform>::User>,
+impl Relation {
+    pub fn assert<T: PartialEq + PartialOrd>(&self, a: &T, b: &T) -> bool {
+        match self {
+            Relation::Equal => a == b,
+            Relation::Greater => a > b,
+            Relation::GreaterOrEqual => a >= b,
+            Relation::Less => a < b,
+            Relation::LessOrEqual => a <= b,
+        }
+    }
+}
+
+struct RequiredBalance<T: Platform, B> {
+    token_type: Option<TokenType<<T as Platform>::User>>,
     relation: Relation,
-    amount: Balance,
+    amount: B,
 }
 
 struct Allowlist<T: Platform>(Vec<<<T as Platform>::User as Identity>::Identifier>);
@@ -120,51 +132,83 @@ impl<T: Platform + Sync> Requirement for Allowlist<T> {
     type Source = T;
     type Extrinsic = bool;
 
-    async fn retrieve_extrinsic(
+    async fn check(
         &self,
-        _source: &Self::Source,
-        _user: &<Self::Source as Platform>::User,
-        _client: &Client,
-    ) -> Result<Self::Extrinsic, String> {
-        Ok(true)
-    }
-
-    async fn check_identity(&self, user: &<Self::Source as Platform>::User) -> bool {
-        user.verify() && self.0.iter().any(|id| id == user.identifier())
-    }
-
-    async fn check_extrinsic(&self, extrinsic: &Self::Extrinsic) -> bool {
-        *extrinsic
+        user: &<Self::Source as Platform>::User,
+        _client: &<Self::Source as Platform>::Client,
+    ) -> Result<bool, String> {
+        Ok(self.0.iter().any(|id| id == user.identifier()))
     }
 }
 
 #[async_trait]
-impl<T: Platform + Sync> Requirement for RequiredBalance<T> {
-    type Source = T;
-    type Extrinsic = Balance; // type alias for u128
+impl Requirement for RequiredBalance<Solana, u64> {
+    type Source = Solana;
+    type Extrinsic = u64;
 
-    async fn retrieve_extrinsic(
+    async fn check(
         &self,
-        source: &Self::Source,
         user: &<Self::Source as Platform>::User,
-        client: &Client,
-    ) -> Result<Self::Extrinsic, String> {
-        todo!()
-    }
-
-    async fn check_extrinsic(&self, extrinsic: &Self::Extrinsic) -> bool {
-        match self.relation {
-            Relation::Equal => *extrinsic == self.amount,
-            Relation::Greater => *extrinsic > self.amount,
-            Relation::GreaterOrEqual => *extrinsic >= self.amount,
-            Relation::Less => *extrinsic < self.amount,
-            Relation::LessOrEqual => *extrinsic <= self.amount,
-        }
-    }
-
-    async fn check_identity(&self, user: &<Self::Source as Platform>::User) -> bool {
-        user.verify()
+        client: &<Self::Source as Platform>::Client,
+    ) -> Result<bool, String> {
+        let balance = match self.token_type {
+            None => client
+                .get_balance(user.identifier())
+                .map_err(|e| e.to_string())?,
+            Some(TokenType::Fungible { address }) => todo!(),
+            Some(TokenType::NonFungible { address, id }) => todo!(),
+        };
+        Ok(self.relation.assert(&balance, &self.amount))
     }
 }
 
-fn main() {}
+#[async_trait]
+impl Requirement for RequiredBalance<EvmChain, U256> {
+    type Source = EvmChain;
+    type Extrinsic = U256;
+
+    async fn check(
+        &self,
+        user: &<Self::Source as Platform>::User,
+        client: &<Self::Source as Platform>::Client,
+    ) -> Result<bool, String> {
+        let balance = match self.token_type {
+            None => client
+                .eth()
+                .balance(*user.identifier(), None)
+                .await
+                .map_err(|e| e.to_string())?,
+            Some(TokenType::Fungible { address }) => todo!(),
+            Some(TokenType::NonFungible { address, id }) => todo!(),
+        };
+        Ok(self.relation.assert(&balance, &self.amount))
+    }
+}
+
+#[async_trait]
+impl Requirement for EvmIdentity {
+    type Source = EvmChain;
+    type Extrinsic = bool;
+
+    async fn check(
+        &self,
+        _user: &<Self::Source as Platform>::User,
+        _client: &<Self::Source as Platform>::Client,
+    ) -> Result<bool, String> {
+        Ok(self.verify())
+    }
+}
+
+#[async_trait]
+impl Requirement for SolIdentity {
+    type Source = Solana;
+    type Extrinsic = bool;
+
+    async fn check(
+        &self,
+        _user: &<Self::Source as Platform>::User,
+        _client: &<Self::Source as Platform>::Client,
+    ) -> Result<bool, String> {
+        Ok(self.verify())
+    }
+}
