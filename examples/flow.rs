@@ -7,26 +7,24 @@ use solana_sdk::signer::{keypair::Keypair, Signer};
 pub type Balance = u128;
 
 trait Platform {
-    type User: Identity;
+    type User: Identity + Sync;
     fn endpoint(&self) -> &str;
 }
 
-#[async_trait]
 trait Requirement {
-    type Querier;
-    type Platform: Platform;
+    type Source: Platform;
     type VerificationData: Sized;
-    async fn verification_data(
+    fn build_request(
         &self,
-        platform: &Self::Platform,
-        querier: &Self::Querier,
-    ) -> Result<Self::VerificationData, String>
-    where
-        Self: Sized;
+        source: &Self::Source,
+        querier: &reqwest::Client,
+    ) -> Option<request::Request> {
+        None
+    }
 
-    async fn check(
+    fn check(
         &self,
-        user: &<<Self as Requirement>::Platform as Trait>::User,
+        user: &<Self::Source as Platform>::User,
         data: &Self::VerificationData,
     ) -> Result<bool, String>;
 }
@@ -105,48 +103,37 @@ struct RequiredBalance<T: Identity> {
     amount: Balance,
 }
 
-struct Allowlist<T: Identity>(Vec<T::Identifier>);
+struct Allowlist<T: Platform>(Vec<<<T as Platform>::User as Identity>::Identifier>);
 
-#[async_trait]
-impl<T: Platform> Requirement for Allowlist<T> {
-    type Querier = reqwest::Client;
-    type Platform = T;
-    type VerificationData = ();
+impl<T: Platform + Sync> Requirement for Allowlist<T> {
+    type Source = T;
+    type VerificationData = Option<()>;
 
-    async fn verification_data(
+    fn check(
         &self,
-        platform: &Self::Platform,
-        querier: &Self::Querier,
-    ) -> Result<Self::VerificationData, String> {
-        Ok(())
-    }
-
-    async fn check(
-        &self,
-        user: &Self::Platform::User,
-        data: &Self::VerificationData,
+        user: &<Self::Source as Platform>::User,
+        _data: &OSelf::VerificationData,
     ) -> Result<bool, String> {
         if !user.verify() {
-            return Err("invalid signature".to_string());
+            Ok(false)
+        } else {
+            Ok(self.0.iter().any(|id| id == user.identity()))
         }
-        Ok(self.0.iter().any(|id| id == user.identifier()))
     }
 }
 
-/*
-#[async_trait]
-impl<T: Identity> Requirement for RequiredBalance<T> {
-    type Querier = reqwest::Client;
-    type User = T;
+impl<T: Platform + Sync> Requirement for RequiredBalance<T> {
+    type Source = T;
     type VerificationData = Balance; // type alias for u128
 
-    async fn verification_data(
+    fn build_request(
         &self,
         user: &Self::User,
-        querier: &Self::Querier,
-    ) -> Result<Self::VerificationData, String> {
+        client: &reqwest::Client,
+    ) -> Option<reqwest::Request> {
     }
+
+    fn check(&self, user: &<Self::Source as Platform>::User, data: &Self::VerificationData) {}
 }
-*/
 
 fn main() {}
