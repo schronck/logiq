@@ -6,26 +6,34 @@ use solana_sdk::signer::{keypair::Keypair, Signer};
 
 pub type Balance = u128;
 
+trait Platform {
+    type User: Identity;
+    fn endpoint(&self) -> &str;
+}
+
 #[async_trait]
 trait Requirement {
     type Querier;
-    type User: Identity;
+    type Platform: Platform;
     type VerificationData: Sized;
     async fn verification_data(
         &self,
-        user: &Self::User,
+        platform: &Self::Platform,
         querier: &Self::Querier,
-    ) -> Result<VerificationData, String>
+    ) -> Result<Self::VerificationData, String>
     where
         Self: Sized;
 
-    async fn check(&self, user: &Self::User, data: &Self::VerificationData)
-        -> Result<bool, String>;
+    async fn check(
+        &self,
+        user: &<<Self as Requirement>::Platform as Trait>::User,
+        data: &Self::VerificationData,
+    ) -> Result<bool, String>;
 }
 
 trait Identity {
-    type Identifier: Sized;
-    fn verify(&self) -> Result<bool, String>;
+    type Identifier: Sized + PartialEq + Sync;
+    fn verify(&self) -> bool;
     fn identifier(&self) -> &Self::Identifier;
 }
 
@@ -43,11 +51,11 @@ struct SolanaSignature {
 
 impl Identity for EthereumSignature {
     type Identifier = Address;
-    fn verify(&self) -> Result<bool, String> {
+    fn verify(&self) -> bool {
         // TODO check msg is something that we expect
         self.signature
             .verify(self.msg.as_str(), self.address)
-            .map_err(|e| e.to_string())
+            .is_ok()
     }
 
     fn identifier(&self) -> &Self::Identifier {
@@ -57,11 +65,10 @@ impl Identity for EthereumSignature {
 
 impl Identity for SolanaSignature {
     type Identifier = Pubkey;
-    fn verify(&self) -> Result<bool, String> {
+    fn verify(&self) -> bool {
         // TODO check msg is something that we expect
-        Ok(self
-            .signature
-            .verify(self.pubkey.as_bytes(), self.msg.as_bytes()))
+        self.signature
+            .verify(&self.pubkey.to_bytes(), self.msg.as_bytes())
     }
 
     fn identifier(&self) -> &Self::Identifier {
@@ -92,14 +99,54 @@ enum Relation {
     LessOrEqual,
 }
 
-struct RequiredBalance {
-    balance_type: BalanceType,
+struct RequiredBalance<T: Identity> {
+    balance_type: BalanceType<T>,
     relation: Relation,
     amount: Balance,
 }
 
-struct Allowlist<T>(Vec<T>);
+struct Allowlist<T: Identity>(Vec<T::Identifier>);
 
-impl<T: Idenity> Requirement for Allowlist<T> {}
+#[async_trait]
+impl<T: Platform> Requirement for Allowlist<T> {
+    type Querier = reqwest::Client;
+    type Platform = T;
+    type VerificationData = ();
+
+    async fn verification_data(
+        &self,
+        platform: &Self::Platform,
+        querier: &Self::Querier,
+    ) -> Result<Self::VerificationData, String> {
+        Ok(())
+    }
+
+    async fn check(
+        &self,
+        user: &Self::Platform::User,
+        data: &Self::VerificationData,
+    ) -> Result<bool, String> {
+        if !user.verify() {
+            return Err("invalid signature".to_string());
+        }
+        Ok(self.0.iter().any(|id| id == user.identifier()))
+    }
+}
+
+/*
+#[async_trait]
+impl<T: Identity> Requirement for RequiredBalance<T> {
+    type Querier = reqwest::Client;
+    type User = T;
+    type VerificationData = Balance; // type alias for u128
+
+    async fn verification_data(
+        &self,
+        user: &Self::User,
+        querier: &Self::Querier,
+    ) -> Result<Self::VerificationData, String> {
+    }
+}
+*/
 
 fn main() {}
