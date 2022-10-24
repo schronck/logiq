@@ -44,12 +44,12 @@ assert!(tree.evaluate(&terminals).unwrap());
 
 ### Benchmarks
 
-Benchmarked on an AMD Ryzen 3600, the following benchmarks times were measured (in $\mu$s):
+Benchmarked on an AMD Ryzen 3600, the following benchmarks times were measured (in _microseconds_):
 
 | # of terminals | 10 | 100 | 1000 |
-|-|-|-|
-| parsing | 0.99 | 12.00 | 121.16 |
-| evaluation | 0.16 | 1.95 | 21.44 |
+|:-:|:-:|:-:|:-:|
+| parsing [μs] | 0.99 | 12.00 | 121.16 |
+| evaluation [μs] | 0.16 | 1.95 | 21.44 |
 
 Thus, even in a (imo highly unlikely) situation with 1000 requirements, parsing and evaluating
 arbitrary logic takes less than 150 microseconds.
