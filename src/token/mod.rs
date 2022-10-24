@@ -23,8 +23,8 @@ pub enum LogicTree {
     Terminal(TerminalId),
     Gate {
         gate: Gate,
-        left: Box<LogicTree>,
-        right: Box<LogicTree>,
+        left: Box<Self>,
+        right: Box<Self>,
     },
 }
 
@@ -36,12 +36,12 @@ impl LogicTree {
     pub fn evaluate(&self, terminals: &HashMap<TerminalId, bool>) -> Result<bool, String> {
         let eval;
         match self {
-            LogicTree::Terminal(c) => {
+            Self::Terminal(c) => {
                 eval = *terminals
                     .get(c)
                     .ok_or_else(|| "Invalid terminals map".to_string())?
             }
-            LogicTree::Gate { gate, left, right } => {
+            Self::Gate { gate, left, right } => {
                 let left_eval = left.evaluate(terminals)?;
                 let right_eval = right.evaluate(terminals)?;
                 match gate {
