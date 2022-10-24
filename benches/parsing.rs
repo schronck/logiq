@@ -1,8 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use rand_core::{OsRng, RngCore};
-use requiem::gate::Gate;
-use requiem::token::LogicTree;
-use requiem::TerminalId;
+use requiem::{Gate, LogicTree, TerminalId};
 
 use std::collections::HashMap;
 use std::str::FromStr;
