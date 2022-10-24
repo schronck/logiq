@@ -1,13 +1,12 @@
+#![allow(unused)]
+#![allow(dead_code)]
+
 use async_trait::async_trait;
-use ethers::prelude::{Address, LocalWallet, Signature as EvmSignature};
-use futures::future::try_join_all;
+use ethers::prelude::{Address, Signature as EvmSignature};
 use solana_client::rpc_client::RpcClient as SolClient;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature as SolSignature;
-use solana_sdk::signer::{keypair::Keypair, Signer};
 use web3::types::U256;
-
-use std::collections::HashMap;
 
 pub type EvmClient = web3::Web3<web3::transports::Http>;
 pub type Balance = u128;
@@ -17,8 +16,6 @@ trait Platform: Sync {
 
     type User: Identity + Sync;
     type Client: Sync;
-
-    fn identifier(&self) -> u32;
 }
 
 pub enum EvmChain {
@@ -204,6 +201,7 @@ struct Evaluator {
     sol: SolClient,
 }
 
+/*
 impl Evaluator {
     async fn evaluate<'a>(
         &self,
@@ -235,5 +233,5 @@ impl Evaluator {
         todo!()
     }
 }
-
+*/
 fn main() {}

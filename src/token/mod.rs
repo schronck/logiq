@@ -39,7 +39,7 @@ impl TokenTree {
             TokenTree::Terminal(c) => {
                 eval = *terminals
                     .get(c)
-                    .ok_or("Invalid terminals map".to_string())?
+                    .ok_or_else(|| "Invalid terminals map".to_string())?
             }
             TokenTree::Gate { gate, left, right } => {
                 let left_eval = left.evaluate(terminals)?;
