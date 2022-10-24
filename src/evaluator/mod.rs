@@ -8,15 +8,20 @@ use futures::future::try_join_all;
 
 use std::collections::HashMap;
 
-pub struct Evaluator<R> {
+pub type RequirementsVec<'a, Q> = Vec<&'a dyn Requirement<Querier = Q>>;
+
+pub struct Evaluator<'a, Q> {
     bdd: BDD<TerminalId>,
     root_bdd_func: BDDFunc,
-    requirements: Vec<R>,
+    requirements: RequirementsVec<'a, Q>,
     evals: HashMap<TerminalId, bool>,
 }
 
-impl<R: Requirement> Evaluator<R> {
-    pub fn new(bdd_data: BDDData, requirements: Vec<R>) -> Result<Self, anyhow::Error> {
+impl<'a, Q: Sync> Evaluator<'a, Q> {
+    pub fn new(
+        bdd_data: BDDData,
+        requirements: RequirementsVec<'a, Q>,
+    ) -> Result<Self, anyhow::Error> {
         let BDDData { bdd, root_bdd_func } = bdd_data;
         let bdd_terminal_ids = bdd.labels();
 
@@ -35,7 +40,7 @@ impl<R: Requirement> Evaluator<R> {
         })
     }
 
-    pub async fn evaluate(&mut self, querier: &R::Querier) -> Result<bool, anyhow::Error> {
+    pub async fn evaluate(&mut self, querier: &Q) -> Result<bool, anyhow::Error> {
         let future_evals = self
             .requirements
             .iter()
@@ -90,7 +95,7 @@ mod test {
 
     #[tokio::test]
     async fn free_requirement() {
-        let requirements = vec![Free];
+        let requirements = vec![&Free as &dyn Requirement<Querier = u8>];
         let client = 0u8; // querier can be any type
 
         let mut evaluator = Evaluator::new(BDDData::from_str("0").unwrap(), requirements).unwrap();
@@ -99,7 +104,7 @@ mod test {
 
     #[tokio::test]
     async fn reused_terminals() {
-        let requirements = vec![Free, Free, Free];
+        let requirements = vec![&Free as &dyn Requirement<Querier = u8>; 3];
         let client = 0u8; // querier can be any type
 
         let mut evaluator = Evaluator::new(
@@ -107,13 +112,16 @@ mod test {
             requirements.clone(),
         )
         .unwrap();
+
         assert!(evaluator.evaluate(&client).await.unwrap());
+
         let mut evaluator = Evaluator::new(
             BDDData::from_str("(0 NAND 1) OR (0 AND 2)").unwrap(),
             requirements.clone(),
         )
         .unwrap();
         assert!(evaluator.evaluate(&client).await.unwrap());
+
         let mut evaluator = Evaluator::new(
             BDDData::from_str("(0 NAND 1) OR (0 NAND 2)").unwrap(),
             requirements,
@@ -143,7 +151,10 @@ mod test {
             msg: msg.to_string(),
         };
 
-        let requirements = vec![controls_address_a, controls_address_b];
+        let requirements = vec![
+            &controls_address_a as &dyn Requirement<Querier = u8>,
+            &controls_address_b as &dyn Requirement<Querier = u8>,
+        ];
 
         let mut evaluator =
             Evaluator::new(BDDData::from_str("0 AND 1").unwrap(), requirements.clone()).unwrap();
@@ -152,5 +163,51 @@ mod test {
         let mut evaluator =
             Evaluator::new(BDDData::from_str("0 NAND 1").unwrap(), requirements).unwrap();
         assert!(!evaluator.evaluate(&client).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn different_types_same_trait() {
+        struct U32(u32);
+        struct U128(u128);
+
+        #[async_trait]
+        impl Requirement for U32 {
+            type Querier = reqwest::Client;
+            async fn check(&self, _querier: &Self::Querier) -> RequirementResult {
+                if self.0 < 100 {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+
+        #[async_trait]
+        impl Requirement for U128 {
+            type Querier = reqwest::Client;
+            async fn check(&self, _querier: &Self::Querier) -> RequirementResult {
+                if self.0 > 100 {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+        }
+
+        let requirements = vec![
+            &U128(123) as &dyn Requirement<Querier = reqwest::Client>,
+            &U32(400) as &dyn Requirement<Querier = reqwest::Client>,
+            &U32(1) as &dyn Requirement<Querier = reqwest::Client>,
+            &U128(2) as &dyn Requirement<Querier = reqwest::Client>,
+        ];
+
+        let mut evaluator = Evaluator::new(
+            BDDData::from_str("0 OR (1 AND 2) OR 3").unwrap(),
+            requirements,
+        )
+        .unwrap();
+        let client = reqwest::Client::new();
+        // true || (false && true) || false
+        assert!(evaluator.evaluate(&client).await.unwrap());
     }
 }

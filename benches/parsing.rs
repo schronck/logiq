@@ -7,6 +7,7 @@ use requiem::gate::Gate;
 use requiem::token::TokenTree;
 use requiem::TerminalId;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 
 fn generate_expression(rng: &mut OsRng, size: usize) -> String {
@@ -51,7 +52,7 @@ fn bench_bdd_build(c: &mut Criterion) {
     let now = std::time::Instant::now();
     let bdd = BDDData::from_str(&expression_large).unwrap();
     println!(
-        "bdd labels len: {}, elapsed: {} ms",
+        "BDD LABELS: {}, ELAPSED: {} ms",
         bdd.bdd.labels().len(),
         now.elapsed().as_millis()
     );
@@ -72,17 +73,17 @@ fn bench_bdd_build(c: &mut Criterion) {
 fn bench_bdd_serialization(c: &mut Criterion) {
     let mut group = c.benchmark_group("bdd_serialize");
     let mut rng = OsRng;
-    let expression_short = generate_expression(&mut rng, 10);
-    let expresssion_medium = generate_expression(&mut rng, 20);
-    let expression_long = generate_expression(&mut rng, 30);
+    let expression_10 = generate_expression(&mut rng, 10);
+    let expression_20 = generate_expression(&mut rng, 20);
+    let expression_30 = generate_expression(&mut rng, 30);
 
-    let bdd_short = BDDData::from_str(&expression_short).unwrap();
-    let bdd_medium = BDDData::from_str(&expresssion_medium).unwrap();
-    let bdd_long = BDDData::from_str(&expression_long).unwrap();
+    let bdd_10 = BDDData::from_str(&expression_10).unwrap();
+    let bdd_20 = BDDData::from_str(&expression_20).unwrap();
+    let bdd_30 = BDDData::from_str(&expression_30).unwrap();
 
-    let ser_short = bdd_short.bdd.try_to_vec().unwrap();
-    let ser_medium = bdd_medium.bdd.try_to_vec().unwrap();
-    let ser_long = bdd_long.bdd.try_to_vec().unwrap();
+    let ser_short = bdd_10.bdd.try_to_vec().unwrap();
+    let ser_medium = bdd_20.bdd.try_to_vec().unwrap();
+    let ser_long = bdd_30.bdd.try_to_vec().unwrap();
 
     println!("SERIALIZED BDD LEN:");
     println!("FEW REQUIREMENTS: {}", ser_short.len());
@@ -90,22 +91,86 @@ fn bench_bdd_serialization(c: &mut Criterion) {
     println!("LOT REQUIREMENTS: {}", ser_long.len());
 
     group.bench_function("bench_ser_10", |b| {
-        b.iter(|| bdd_short.bdd.try_to_vec().unwrap());
+        b.iter(|| bdd_10.bdd.try_to_vec().unwrap());
     });
-    group.bench_function("bench_ser_100", |b| {
-        b.iter(|| bdd_medium.bdd.try_to_vec().unwrap());
+    group.bench_function("bench_ser_20", |b| {
+        b.iter(|| bdd_20.bdd.try_to_vec().unwrap());
     });
-    group.bench_function("bench_ser_1000", |b| {
-        b.iter(|| bdd_long.bdd.try_to_vec().unwrap());
+    group.bench_function("bench_ser_30", |b| {
+        b.iter(|| bdd_30.bdd.try_to_vec().unwrap());
     });
     group.bench_function("bench_de_10", |b| {
         b.iter(|| BDD::<TerminalId>::try_from_slice(&ser_short).unwrap());
     });
-    group.bench_function("bench_de_100", |b| {
+    group.bench_function("bench_de_20", |b| {
         b.iter(|| BDD::<TerminalId>::try_from_slice(&ser_medium).unwrap());
     });
-    group.bench_function("bench_de_1000", |b| {
+    group.bench_function("bench_de_30", |b| {
         b.iter(|| BDD::<TerminalId>::try_from_slice(&ser_long).unwrap());
+    });
+}
+
+fn bench_bdd_evaluation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bdd_evaluate");
+    let mut rng = OsRng;
+    let expression_10 = generate_expression(&mut rng, 10);
+    let expression_20 = generate_expression(&mut rng, 20);
+    let expression_30 = generate_expression(&mut rng, 30);
+
+    let bdd_10 = BDDData::from_str(&expression_10).unwrap();
+    let bdd_20 = BDDData::from_str(&expression_20).unwrap();
+    let bdd_30 = BDDData::from_str(&expression_30).unwrap();
+
+    let map_10 = (0..expression_10.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+    let map_20 = (0..expression_20.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+    let map_30 = (0..expression_30.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+
+    group.bench_function("bench_eval_10", |b| {
+        b.iter(|| bdd_10.bdd.evaluate(bdd_10.root_bdd_func, &map_10));
+    });
+    group.bench_function("bench_eval_20", |b| {
+        b.iter(|| bdd_20.bdd.evaluate(bdd_20.root_bdd_func, &map_20));
+    });
+    group.bench_function("bench_eval_30", |b| {
+        b.iter(|| bdd_30.bdd.evaluate(bdd_30.root_bdd_func, &map_30));
+    });
+}
+
+fn bench_tree_evaluation(c: &mut Criterion) {
+    let mut group = c.benchmark_group("parsing");
+    let mut rng = OsRng;
+    let expression_10 = generate_expression(&mut rng, 10);
+    let expression_100 = generate_expression(&mut rng, 100);
+    let expression_1000 = generate_expression(&mut rng, 1000);
+
+    let tree_10 = TokenTree::from_str(&expression_10).unwrap();
+    let tree_100 = TokenTree::from_str(&expression_100).unwrap();
+    let tree_1000 = TokenTree::from_str(&expression_1000).unwrap();
+
+    let map_10 = (0..expression_10.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+    let map_100 = (0..expression_100.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+    let map_1000 = (0..expression_1000.len())
+        .map(|i| (i, (i % 2) != 0))
+        .collect::<HashMap<TerminalId, bool>>();
+
+    group.bench_function("bench_10", |b| {
+        b.iter(|| tree_10.evaluate(&map_10).unwrap());
+    });
+    group.bench_function("bench_100", |b| {
+        b.iter(|| tree_100.evaluate(&map_100).unwrap());
+    });
+    group.bench_function("bench_1000", |b| {
+        b.iter(|| tree_1000.evaluate(&map_1000).unwrap());
     });
 }
 
@@ -113,6 +178,8 @@ criterion_group!(
     benches,
     bench_parsing,
     bench_bdd_build,
-    bench_bdd_serialization
+    bench_bdd_serialization,
+    bench_bdd_evaluation,
+    bench_tree_evaluation,
 );
 criterion_main!(benches);
