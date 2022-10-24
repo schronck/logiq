@@ -72,13 +72,13 @@ fn bench_tree_evaluation(c: &mut Criterion) {
     let tree_1000 = LogicTree::from_str(&expression_1000).unwrap();
 
     let map_10 = (0..expression_10.len())
-        .map(|i| (i, (i % 2) != 0))
+        .map(|i| (i as TerminalId, (i % 2) != 0))
         .collect::<HashMap<TerminalId, bool>>();
     let map_100 = (0..expression_100.len())
-        .map(|i| (i, (i % 2) != 0))
+        .map(|i| (i as TerminalId, (i % 2) != 0))
         .collect::<HashMap<TerminalId, bool>>();
     let map_1000 = (0..expression_1000.len())
-        .map(|i| (i, (i % 2) != 0))
+        .map(|i| (i as TerminalId, (i % 2) != 0))
         .collect::<HashMap<TerminalId, bool>>();
 
     group.bench_function("bench_10", |b| {
