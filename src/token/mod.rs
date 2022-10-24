@@ -19,16 +19,16 @@ pub enum Token {
 }
 
 #[derive(Clone, Debug)]
-pub enum TokenTree {
+pub enum LogicTree {
     Terminal(TerminalId),
     Gate {
         gate: Gate,
-        left: Box<TokenTree>,
-        right: Box<TokenTree>,
+        left: Box<Self>,
+        right: Box<Self>,
     },
 }
 
-impl TokenTree {
+impl LogicTree {
     pub fn new(source: &str) -> Result<Self, ParseError> {
         parse(source)
     }
@@ -36,12 +36,12 @@ impl TokenTree {
     pub fn evaluate(&self, terminals: &HashMap<TerminalId, bool>) -> Result<bool, String> {
         let eval;
         match self {
-            TokenTree::Terminal(c) => {
+            Self::Terminal(c) => {
                 eval = *terminals
                     .get(c)
                     .ok_or_else(|| "Invalid terminals map".to_string())?
             }
-            TokenTree::Gate { gate, left, right } => {
+            Self::Gate { gate, left, right } => {
                 let left_eval = left.evaluate(terminals)?;
                 let right_eval = right.evaluate(terminals)?;
                 match gate {
@@ -57,7 +57,7 @@ impl TokenTree {
     }
 }
 
-impl FromStr for TokenTree {
+impl FromStr for LogicTree {
     type Err = ParseError;
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         Self::new(input)
@@ -66,7 +66,7 @@ impl FromStr for TokenTree {
 
 #[test]
 fn evaluate_tree() {
-    let tree = TokenTree::from_str("0 AND 1 OR ((0 NAND 2) OR 3)").unwrap();
+    let tree = LogicTree::from_str("0 AND 1 OR ((0 NAND 2) OR 3)").unwrap();
     let mut terminals = HashMap::new();
     terminals.insert(0, true);
     terminals.insert(1, true);

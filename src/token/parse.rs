@@ -1,5 +1,5 @@
 use super::scan::{ScanError, Scanner};
-use super::{Token, TokenTree};
+use super::{LogicTree, Token};
 use crate::gate::Gate;
 use thiserror::Error;
 
@@ -17,15 +17,15 @@ pub enum ParseError {
     ScanError(#[from] ScanError),
 }
 
-pub fn parse(source: &str) -> Result<TokenTree, ParseError> {
+pub fn parse(source: &str) -> Result<LogicTree, ParseError> {
     let scanned = Scanner::scan(source)?;
     parse_next(&mut scanned.iter().peekable())?.ok_or(ParseError::InvalidExpression)
 }
 
 fn parse_next(
     scanned: &mut Peekable<std::slice::Iter<'_, Token>>,
-) -> Result<Option<TokenTree>, ParseError> {
-    let mut current_tree: Option<TokenTree> = None;
+) -> Result<Option<LogicTree>, ParseError> {
+    let mut current_tree: Option<LogicTree> = None;
     let mut current_gate: Option<Gate> = None;
     while let Some(token) = scanned.next() {
         (current_tree, current_gate) = match token {
@@ -46,7 +46,7 @@ fn parse_next(
                 return result;
             }
             Token::Terminal(c) => {
-                try_finalize_leaf(current_tree, current_gate, TokenTree::Terminal(*c))?
+                try_finalize_leaf(current_tree, current_gate, LogicTree::Terminal(*c))?
             }
             Token::Gate(gate) => {
                 if current_tree.is_some() && current_gate.is_none() {
@@ -66,16 +66,16 @@ fn parse_next(
 }
 
 fn try_finalize_leaf(
-    current_tree: Option<TokenTree>,
+    current_tree: Option<LogicTree>,
     current_gate: Option<Gate>,
-    new_leaf: TokenTree,
-) -> Result<(Option<TokenTree>, Option<Gate>), ParseError> {
+    new_leaf: LogicTree,
+) -> Result<(Option<LogicTree>, Option<Gate>), ParseError> {
     match (current_tree, current_gate) {
         (None, None) => Ok((Some(new_leaf), None)),
         (None, Some(_)) => Err(ParseError::InvalidGatePlacement),
         (Some(_), None) => Err(ParseError::InvalidTerminalPlacement),
         (Some(tree), Some(gate)) => Ok((
-            Some(TokenTree::Gate {
+            Some(LogicTree::Gate {
                 gate,
                 left: Box::new(tree),
                 right: Box::new(new_leaf),
@@ -97,19 +97,19 @@ mod test {
     fn parse_single_variable() {
         let tree = parse("0").unwrap();
         match tree {
-            TokenTree::Terminal(c) => assert_eq!(c, 0),
+            LogicTree::Terminal(c) => assert_eq!(c, 0),
             _ => panic!("should be terminal"),
         }
 
         let tree = parse("(11)").unwrap();
         match tree {
-            TokenTree::Terminal(c) => assert_eq!(c, 11),
+            LogicTree::Terminal(c) => assert_eq!(c, 11),
             _ => panic!("should be terminal"),
         }
 
         let tree = parse("((((111))))").unwrap();
         match tree {
-            TokenTree::Terminal(c) => assert_eq!(c, 111),
+            LogicTree::Terminal(c) => assert_eq!(c, 111),
             _ => panic!("should be terminal"),
         }
     }
@@ -186,18 +186,18 @@ mod test {
 
         let parsed = parse("119").unwrap();
         match parsed {
-            TokenTree::Terminal(119) => {}
+            LogicTree::Terminal(119) => {}
             _ => unreachable!(),
         }
 
         let parsed = parse("((15) NOR ((16)))").unwrap();
         match parsed {
-            TokenTree::Gate {
+            LogicTree::Gate {
                 gate: Gate::Nor,
                 left: terminal_15,
                 right: terminal_16,
             } => match (*terminal_15, *terminal_16) {
-                (TokenTree::Terminal(15), TokenTree::Terminal(16)) => {}
+                (LogicTree::Terminal(15), LogicTree::Terminal(16)) => {}
                 _ => unreachable!(),
             },
             _ => unreachable!(),
@@ -205,22 +205,22 @@ mod test {
 
         let parsed = parse("0 AND 1 OR 2").unwrap();
         match parsed {
-            TokenTree::Gate {
+            LogicTree::Gate {
                 gate: Gate::Or,
                 left: tree,
                 right: terminal_2,
             } => {
                 match *terminal_2 {
-                    TokenTree::Terminal(2) => {}
+                    LogicTree::Terminal(2) => {}
                     _ => unreachable!(),
                 }
                 match *tree {
-                    TokenTree::Gate {
+                    LogicTree::Gate {
                         gate: Gate::And,
                         left: terminal_0,
                         right: terminal_1,
                     } => match (*terminal_0, *terminal_1) {
-                        (TokenTree::Terminal(0), TokenTree::Terminal(1)) => {}
+                        (LogicTree::Terminal(0), LogicTree::Terminal(1)) => {}
                         _ => unreachable!(),
                     },
                     _ => unreachable!(),
@@ -231,32 +231,32 @@ mod test {
         let parsed = parse("0 AND (10 OR 11) XOR 0").unwrap();
         // descending the tree is quite painful like this
         match parsed {
-            TokenTree::Gate {
+            LogicTree::Gate {
                 gate: Gate::Xor,
                 left: tree,
                 right: terminal_0,
             } => {
                 match *terminal_0 {
-                    TokenTree::Terminal(0) => {}
+                    LogicTree::Terminal(0) => {}
                     _ => unreachable!(),
                 }
                 match *tree {
-                    TokenTree::Gate {
+                    LogicTree::Gate {
                         gate: Gate::And,
                         left: terminal_0,
                         right: tree,
                     } => {
                         match *terminal_0 {
-                            TokenTree::Terminal(0) => {}
+                            LogicTree::Terminal(0) => {}
                             _ => unreachable!(),
                         }
                         match *tree {
-                            TokenTree::Gate {
+                            LogicTree::Gate {
                                 gate: Gate::Or,
                                 left: terminal_10,
                                 right: terminal_11,
                             } => match (*terminal_10, *terminal_11) {
-                                (TokenTree::Terminal(10), TokenTree::Terminal(11)) => {}
+                                (LogicTree::Terminal(10), LogicTree::Terminal(11)) => {}
                                 _ => unreachable!(),
                             },
                             _ => unreachable!(),

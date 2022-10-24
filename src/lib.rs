@@ -1,9 +1,10 @@
 #![deny(clippy::all)]
 #![deny(clippy::dbg_macro)]
 
-pub mod evaluator;
-pub mod gate;
-pub mod requirement;
-pub mod token;
+mod gate;
+mod token;
 
-pub type TerminalId = usize;
+pub use gate::Gate;
+pub use token::{LogicTree, ParseError};
+
+pub type TerminalId = u32;

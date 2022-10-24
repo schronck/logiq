@@ -8,24 +8,11 @@ pub const XOR: &str = "XOR";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Gate {
-    And = 0,
-    Or = 1,
-    Nand = 2,
-    Nor = 3,
-    Xor = 4,
-}
-
-impl From<u32> for Gate {
-    fn from(num: u32) -> Self {
-        match num {
-            0 => Self::And,
-            1 => Self::Or,
-            2 => Self::Nand,
-            3 => Self::Nor,
-            4 => Self::Xor,
-            _ => panic!("invalid number"),
-        }
-    }
+    And,
+    Or,
+    Nand,
+    Nor,
+    Xor,
 }
 
 impl FromStr for Gate {
