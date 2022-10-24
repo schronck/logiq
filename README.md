@@ -13,7 +13,8 @@ The goal is to collect all requirements in the form of a `json` for example:
 		{ ... }
 	]
 }
-``` where each element in the `requirements` vector represents something that
+``` 
+where each element in the `requirements` vector represents something that
 can eventually be evaluated into a boolean. However, the above structure is
 independent from the implementation of `requirement`. The only restriction is
 that terminals (or leafs) in the logic expression should be represented by a
