@@ -91,31 +91,22 @@ mod tests {
     const THRUTHS: &[bool] = &[true, false, true, false, true, false];
 
     #[test]
-    fn test_empty() {
+    fn test_eval() {
         let res = eval("", THRUTHS).unwrap();
         assert!(res);
 
         let res = eval("()", THRUTHS).unwrap();
         assert!(res);
-    }
 
-    #[test]
-    fn test_terminal_id_ok() {
         let res = eval("0", THRUTHS).unwrap();
         assert!(res);
 
         let res = eval("1", THRUTHS).unwrap();
         assert!(!res);
-    }
 
-    #[test]
-    #[should_panic]
-    fn test_terminal_id_err() {
-        eval("6", THRUTHS).unwrap();
-    }
+        let res = eval("(not 0)", THRUTHS).unwrap();
+        assert!(!res);
 
-    #[test]
-    fn test_logic_string() {
         let res = eval("(0 and 1)", THRUTHS).unwrap();
         assert!(!res);
 

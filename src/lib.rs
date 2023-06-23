@@ -9,4 +9,4 @@ mod eval;
 mod lexer;
 mod parser;
 
-pub use eval::eval;
+pub use self::{data::Gate, eval::eval, parser::parse};
