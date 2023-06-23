@@ -13,6 +13,8 @@ pub enum EvalError {
     UnaryOperator(Gate),
     #[error("\"{0}\" is a binary operator")]
     BinaryOperator(Gate),
+    #[error("Invalid list: {0}")]
+    InvalidList(Value),
     #[error(transparent)]
     ParsingError(#[from] ParsingError),
 }
@@ -77,7 +79,7 @@ pub fn eval_logic(value: &Value) -> Result<bool, EvalError> {
                     _ => return Err(EvalError::UnaryOperator(*gate)),
                 }
             }
-            _ => return Err(EvalError::NotAGate(list[1].clone())),
+            _ => return Err(EvalError::InvalidList(value.clone())),
         },
     };
 
