@@ -1,55 +1,56 @@
-## requiem
-`requiem` is a requirement engine built mainly for the Guild gate. Aimed to be generic over
-various boolean logic and requirements.
+# logiq
 
-The goal is to collect all requirements in the form of a `json` for example:
+A logic operation descriptor language and evaluator engine inspired by
+[requiem](https://github.com/agoraxyz/requiem)
+and the
+[Lisp programming language](<https://en.wikipedia.org/wiki/Lisp_(programming_language)>).
+
+## Usage
+
+`logiq` parses the `logic_str` into an
+[AST](https://en.wikipedia.org/wiki/Abstract_syntax_tree)
+and replaces the *terminal id*s with the boolean values from `thruths` at the
+indices defined by the terminal ids.
+
+There are three atomic types in logiq:
+
+| name       | description                               |
+| ---------- | ----------------------------------------- |
+| TerminalId | thruth index                              |
+| Gate       | logic gate (and, or, not, nand, nor, xor) |
+| List       | a vector of atomic types                  |
+
+These atomic types are used just like in a Lisp language, a `TerminalId` is a
+valid expression by itself, but if we try to evaluate a `Gate` it will return an
+error message. We can only use logic gates in lists, surrounded by terminal ids.
+There is only one unary operator, which is the `NOT` operator, all the other
+gates are binary operators.
+While Lisp uses prefix operators, logiq uses infix operators which are more
+intuitive (`NOT` is a prefix operator in logiq, too).
+
+### Example
+
+```rs
+let thruths = [true, false, true];
+
+// true => true
+let logic_str = "2";
+assert!(!eval(logic_str, &thruths));
+
+// (not true) => false
+let logic_str = "(NOT 0)";
+assert!(!eval(logic_str, &thruths));
+
+// ((true AND false) OR true) => true
+let logic_str = "((0 AND 1) OR 2)";
+assert!(eval(logic_str, &thruths));
 ```
-{
-	"logic": "0 AND (1 OR 2 XOR (3 OR 1))",
-	"requirements": [
-		{ ... },
-		{ ... },
-		{ ... },
-		{ ... }
-	]
-}
-``` 
-where each element in the `requirements` vector represents something that
-can eventually be evaluated into a boolean. However, the above structure is
-independent from the implementation of `requirement`. The only restriction is
-that terminals (or leafs) in the logic expression should be represented by a
-number. This number may denote the index of a requirement in a `requirements`
-vector or it can be a key in a map that points to a specific requirement value.
 
-### Usage
+## Benchmarks
 
-`requiem` parses the incoming `logic` data into a binary `LogicTree` where each
-leaf represents a requirement terminal. Each terminal has a unique `TerminalId`
-and holds a boolean value. Once the input logic is parsed, and the requirement
-results are collected in a `HashMap<TerminalId, bool>`, then the `LogicTree`
-root can be evaluated to a final boolean.
+Benchmarked on a 2020 M1 Macbook Air:
 
-```
-let tree = LogicTree::from_str("0 AND 1 OR ((0 NAND 2) OR 3)").unwrap();
-// evaluate requirements
-let mut evals = HashMap::new();
-evals.insert(0, true);
-evals.insert(1, false);
-evals.insert(2, false);
-evals.insert(3, true);
-
-// boolean output of `true && false || (!(true && false) || true)`
-assert!(tree.evaluate(&terminals).unwrap());
-```
-
-### Benchmarks
-
-Benchmarked on an AMD Ryzen 3600, the following benchmarks times were measured (in _microseconds_):
-
-| # of terminals | 10 | 100 | 1000 |
-|:-:|:-:|:-:|:-:|
-| parsing [μs] | 0.99 | 12.00 | 121.16 |
-| evaluation [μs] | 0.16 | 1.95 | 21.44 |
-
-Thus, even in a (imo highly unlikely) situation with 1000 requirements, parsing and evaluating
-arbitrary logic takes less than 150 microseconds.
+| # of terminals  | 10   | 100   | 1000   |
+| --------------- | ---- | ----- | ------ |
+| parsing [μs]    | 2.65 | 22.12 | 222.35 |
+| evaluation [μs] | 3.79 | 37.83 | 391.47 |
