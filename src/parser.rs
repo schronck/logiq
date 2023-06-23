@@ -117,4 +117,10 @@ mod tests {
             ])
         );
     }
+
+    #[test]
+    #[should_panic]
+    fn test_logic_err() {
+        parse("(0 and 1) xor 1 or 3").unwrap();
+    }
 }
