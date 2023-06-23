@@ -52,5 +52,5 @@ Benchmarked on a 2020 M1 Macbook Air:
 
 | # of terminals  | 10   | 100   | 1000   |
 | --------------- | ---- | ----- | ------ |
-| parsing [μs]    | 2.65 | 22.12 | 222.35 |
-| evaluation [μs] | 3.79 | 37.83 | 391.47 |
+| parsing [μs]    | 2.53 | 22.12 | 222.22 |
+| evaluation [μs] | 2.59 | 23.91 | 242.72 |
