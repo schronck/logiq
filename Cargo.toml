@@ -8,14 +8,8 @@ edition = "2021"
 opt-level = 3
 
 [dependencies]
-anyhow = "1"
-thiserror = "1"
+logos = "0.13.0"
+strum = { version = "0.25.0", features = ["derive"] }
+thiserror = "1.0.40"
 
 [dev-dependencies]
-criterion = "0.4.0"
-rand_core = { version = "0.6.4", features = ["getrandom"] }
-
-[[bench]]
-name = "bench_parsing"
-path = "benches/parsing.rs"
-harness = false
