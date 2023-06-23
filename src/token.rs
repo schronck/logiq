@@ -3,7 +3,7 @@ use logos::Logos;
 use std::str::FromStr;
 use strum::Display;
 
-type TerminalId = u16;
+pub type TerminalId = u16;
 
 #[derive(Debug, Logos, PartialEq, Display)]
 #[logos(error = LexingError)]

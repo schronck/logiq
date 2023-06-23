@@ -6,4 +6,5 @@
 
 mod gate;
 mod lexer;
+mod parser;
 mod token;
