@@ -4,7 +4,9 @@
 #![deny(clippy::clone_on_ref_ptr)]
 #![deny(clippy::cargo)]
 
-mod gate;
+mod data;
+mod eval;
 mod lexer;
 mod parser;
-mod token;
+
+pub use eval::eval;
