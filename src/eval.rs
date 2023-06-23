@@ -93,19 +93,19 @@ mod tests {
     #[test]
     fn test_empty() {
         let res = eval("", THRUTHS).unwrap();
-        assert_eq!(res, true);
+        assert!(res);
 
         let res = eval("()", THRUTHS).unwrap();
-        assert_eq!(res, true);
+        assert!(res);
     }
 
     #[test]
     fn test_terminal_id_ok() {
         let res = eval("0", THRUTHS).unwrap();
-        assert_eq!(res, true);
+        assert!(res);
 
         let res = eval("1", THRUTHS).unwrap();
-        assert_eq!(res, false);
+        assert!(!res);
     }
 
     #[test]
@@ -117,9 +117,9 @@ mod tests {
     #[test]
     fn test_logic_string() {
         let res = eval("(0 and 1)", THRUTHS).unwrap();
-        assert_eq!(res, false);
+        assert!(!res);
 
-        let list = eval("((0 and 1) or 2)", THRUTHS).unwrap();
-        assert_eq!(list, true);
+        let res = eval("((0 and 1) or 2)", THRUTHS).unwrap();
+        assert!(res);
     }
 }

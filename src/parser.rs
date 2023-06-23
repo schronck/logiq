@@ -26,10 +26,9 @@ fn parse_list(tokens: &mut Vec<Token>) -> Result<Expression, ParsingError> {
 
     if tokens.is_empty() {
         return match token {
-            Token::ParenOpen | Token::ParenClose => {
+            Token::ParenOpen | Token::ParenClose | Token::Gate(_) => {
                 Err(ParsingError::NoSuchExpression(token.to_string()))
             }
-            Token::Gate(gate) => Err(ParsingError::NoSuchExpression(gate.to_string())),
             _ => Ok(Expression::Literal(Literal::try_from(token)?)),
         };
     }
