@@ -1,6 +1,5 @@
+use crate::token::*;
 use logos::Logos;
-use std::str::FromStr;
-use strum::{Display, EnumString};
 
 #[derive(Clone, Debug, Default, PartialEq, thiserror::Error)]
 pub enum LexingError {
@@ -13,47 +12,6 @@ pub enum LexingError {
     #[default]
     #[error("Invalid token")]
     Other,
-}
-
-#[derive(Debug, EnumString, PartialEq, Display)]
-#[strum(serialize_all = "UPPERCASE")]
-pub enum Gate {
-    And,
-    Or,
-    Not,
-    Nand,
-    Nor,
-    Xor,
-}
-
-type TerminalId = u16;
-
-#[derive(Debug, Logos, PartialEq, Display)]
-#[logos(error = LexingError)]
-#[logos(skip r"[ \t\n\f]+")]
-pub enum Token {
-    #[token("(")]
-    ParenOpen,
-
-    #[token(")")]
-    ParenClose,
-
-    #[regex(
-        "[0-9]+",
-        |lex| TerminalId::from_str_radix(lex.slice(), 10),
-        priority = 2
-    )]
-    TerminalId(TerminalId),
-
-    #[regex(
-        r"[a-zA-Z]+",
-        |lex| {
-            let gate_str = lex.slice().to_uppercase();
-            Gate::from_str(&gate_str)
-                .map_err(|_| LexingError::NoSuchGate(gate_str.to_string()))
-        }
-    )]
-    Gate(Gate),
 }
 
 pub fn tokenize(input: &str) -> Result<Vec<Token>, LexingError> {
@@ -140,14 +98,18 @@ mod test {
             ]
         );
 
-        let tokens = tokenize("(0 and 1)").unwrap();
+        let tokens = tokenize("((0 and 1) or 2)").unwrap();
         assert_eq!(
             tokens,
             vec![
                 Token::ParenOpen,
+                Token::ParenOpen,
                 Token::TerminalId(0),
                 Token::Gate(Gate::And),
                 Token::TerminalId(1),
+                Token::ParenClose,
+                Token::Gate(Gate::Or),
+                Token::TerminalId(2),
                 Token::ParenClose
             ]
         );
