@@ -1,39 +1,16 @@
-use crate::{lexer::*, token::*};
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Literal {
-    TerminalId(TerminalId),
-    Gate(Gate),
-}
-
-impl TryFrom<Token> for Literal {
-    type Error = ParsingError;
-
-    fn try_from(token: Token) -> Result<Self, Self::Error> {
-        let value = match token {
-            Token::TerminalId(id) => Literal::TerminalId(id),
-            Token::Gate(gate) => Literal::Gate(gate),
-            _ => return Err(ParsingError::NoSuchExpression(token.to_string())),
-        };
-
-        Ok(value)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Expression {
-    Literal(Literal),
-    List(Vec<Expression>),
-}
+use crate::{
+    data::{Expression, Literal, Token},
+    lexer::*,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ParsingError {
-    #[error("PARSER: cannot create expression from token {0}")]
+    #[error("Cannot create expression from token {0}")]
     NoSuchExpression(String),
-    #[error("PARSER: expected \"ParenOpen\" or \"Quote\", found {0}")]
+    #[error("Expected \"ParenOpen\", found {0}")]
     InvalidStart(String),
-    #[error("PARSER: missing expression after quote")]
-    OutOfTokens,
+    #[error("Invalid logic {0}")]
+    InvalidLogic(String),
     #[error(transparent)]
     LexingError(#[from] LexingError),
 }
@@ -42,7 +19,7 @@ pub fn parse(input: &str) -> Result<Expression, ParsingError> {
     parse_list(&mut tokenize(input)?.into_iter().rev().collect::<Vec<_>>())
 }
 
-pub fn parse_list(tokens: &mut Vec<Token>) -> Result<Expression, ParsingError> {
+fn parse_list(tokens: &mut Vec<Token>) -> Result<Expression, ParsingError> {
     let Some(token) = tokens.pop() else {
         return Ok(Expression::List(vec![]));
     };
@@ -65,7 +42,7 @@ pub fn parse_list(tokens: &mut Vec<Token>) -> Result<Expression, ParsingError> {
 
     while !tokens.is_empty() {
         let Some(token) = tokens.pop() else {
-            return Err(ParsingError::OutOfTokens);
+            unreachable!()
         };
 
         match &token {
@@ -86,7 +63,10 @@ pub fn parse_list(tokens: &mut Vec<Token>) -> Result<Expression, ParsingError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::{
+        data::{Expression, Gate, Literal},
+        parser::parse,
+    };
 
     #[test]
     fn test_empty() {

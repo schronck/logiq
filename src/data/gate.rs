@@ -1,6 +1,4 @@
-use strum::{Display, EnumString};
-
-#[derive(Clone, Debug, EnumString, PartialEq, Display)]
+#[derive(Clone, Copy, Debug, strum::EnumString, PartialEq, strum::Display)]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum Gate {
     And,

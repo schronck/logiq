@@ -1,4 +1,4 @@
-use crate::token::*;
+use crate::data::*;
 use logos::Logos;
 
 #[derive(Clone, Debug, Default, PartialEq, thiserror::Error)]
