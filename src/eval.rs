@@ -1,61 +1,49 @@
 use crate::{
-    data::{Expression, Gate, List, Literal, Value},
+    data::{Expression, Gate, Literal, TerminalId},
     parser::*,
 };
 
 #[derive(Debug, thiserror::Error)]
 pub enum EvalError {
     #[error("\"{0}\" is not a gate")]
-    NotAGate(Value),
+    NotAGate(Expression),
     #[error("\"{0}\" is not a terminal id")]
-    NotATerminalId(Value),
+    NotATerminalId(Expression),
+    #[error("Thruth index out of bounds: {0}")]
+    OutOfBounds(TerminalId),
     #[error("\"{0}\" is an unary operator")]
     UnaryOperator(Gate),
     #[error("\"{0}\" is a binary operator")]
     BinaryOperator(Gate),
     #[error("Invalid list: {0}")]
-    InvalidList(Value),
+    InvalidList(Expression),
     #[error(transparent)]
     ParsingError(#[from] ParsingError),
 }
 
 pub fn eval(logic_str: &str, thruths: &[bool]) -> Result<bool, EvalError> {
-    let parsed = parse(logic_str)?;
-    let value = eval_expression(&parsed, thruths)?;
-
-    eval_logic(&value)
+    eval_expression(&parse(logic_str)?, thruths)
 }
 
-pub fn eval_expression(expression: &Expression, thruths: &[bool]) -> Result<Value, EvalError> {
-    let value = match expression {
+pub fn eval_expression(expression: &Expression, thruths: &[bool]) -> Result<bool, EvalError> {
+    let res = match expression {
         Expression::Literal(literal) => match literal {
-            Literal::TerminalId(id) => Value::Thruth(thruths[*id as usize]),
-            Literal::Gate(gate) => Value::Gate(*gate),
+            Literal::TerminalId(id) => thruths
+                .get(*id as usize)
+                .cloned()
+                .ok_or(EvalError::OutOfBounds(*id))?,
+            Literal::Gate(_) => return Err(EvalError::NotATerminalId(expression.clone())),
         },
-        Expression::List(list) => Value::List(List(
-            list.iter()
-                .map(|expr| eval_expression(expr, thruths))
-                .collect::<Result<Vec<_>, _>>()?,
-        )),
-    };
-
-    Ok(value)
-}
-
-pub fn eval_logic(value: &Value) -> Result<bool, EvalError> {
-    let res = match value {
-        Value::Thruth(thruth) => *thruth,
-        Value::Gate(_) => return Err(EvalError::NotATerminalId(value.clone())),
-        Value::List(List(list)) => match list.len() {
+        Expression::List(list) => match list.len() {
             0 => true,
-            1 => eval_logic(&list[0])?,
+            1 => eval_expression(&list[0], thruths)?,
             2 => {
-                let Value::Gate(gate) = &list[0] else {
+                let Expression::Literal(Literal::Gate(gate)) = &list[0] else {
                     return Err(EvalError::NotAGate(list[0].clone()));
                 };
 
                 if *gate == Gate::Not {
-                    let right = eval_logic(&list[1])?;
+                    let right = eval_expression(&list[1], thruths)?;
 
                     !right
                 } else {
@@ -63,10 +51,10 @@ pub fn eval_logic(value: &Value) -> Result<bool, EvalError> {
                 }
             }
             3 => {
-                let left = eval_logic(&list[0])?;
-                let right = eval_logic(&list[2])?;
+                let left = eval_expression(&list[0], thruths)?;
+                let right = eval_expression(&list[2], thruths)?;
 
-                let Value::Gate(gate) = &list[1] else {
+                let Expression::Literal(Literal::Gate(gate)) = &list[1] else {
                     return Err(EvalError::NotAGate(list[1].clone()));
                 };
 
@@ -79,7 +67,7 @@ pub fn eval_logic(value: &Value) -> Result<bool, EvalError> {
                     _ => return Err(EvalError::UnaryOperator(*gate)),
                 }
             }
-            _ => return Err(EvalError::InvalidList(value.clone())),
+            _ => return Err(EvalError::InvalidList(expression.clone())),
         },
     };
 

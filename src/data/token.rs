@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 pub type TerminalId = u16;
 
-#[derive(Debug, logos::Logos, PartialEq, strum::Display)]
+#[derive(Debug, strum::Display, logos::Logos, PartialEq)]
 #[logos(error = LexingError)]
 #[logos(skip r"[ \t\n\f]+")]
 pub enum Token {
